@@ -277,7 +277,6 @@ def scheme_export_packed(
     ### Return a list of xy pairs, a list of autofocus schemes, and a list of image paths.
 
     `l` : the list of scan schemes to be merged.
-
     ----------------------------------------------------------------------------------------------
     #### Optional:
     `p` : file save path for the exported image = `""`.
@@ -368,7 +367,6 @@ def scheme_create_subgrp(
     `n` : number of FOV scans on each side of the subgroup.
     `s` : xy size of FOV scans in given units.
     `d` : distance between adjacent FOV scans.
-
     -----------------------------------------------------------------------------------------------
     #### Optional:
     `i` : iteration mark before the first FOV = `0`.
@@ -451,9 +449,8 @@ def pyplot_create_region(
         i = "",         # value to be displayed at the center       (printable)
         j = "",         # image to be displayed at the center       (file path)
         a = 1,          # alpha value of all marking elements       float / int
-        r = 0,          # degrees to rotate counter-clockwise       float / int
-        b = False,      # flip image over x axis                    bool
-        d = False,      # flip image over y axis                    bool
+        b = False,      # flip image horizontally                   bool
+        d = False,      # flip image vertically                     bool
 ):
     """
     ### Store a rectangle with width = w and height = h at (x,y), marked with i.
@@ -462,7 +459,6 @@ def pyplot_create_region(
     `y` : center y coordinate.
     `w` : size of FOV over x axis.
     `h` : size of FOV over y axis.
-
     -----------------------------------------------------------------------------------------------
     #### Optional:
     `c` : color to be used to plot the center. Default = `'b'` *(blue)*.
@@ -472,9 +468,8 @@ def pyplot_create_region(
     `i` : value to be displayed at the center. Default = `""`.
     `j` : image to be displayed at the center. Default = `""`.
     `a` : alpha value of all marking elements. Default = `1`.
-    `r` : degrees to rotate counter-clockwise. Default = `0`.
-    `b` : flip image over x axis if True. Default = `False`.
-    `d` : flip image over y axis if True. Default = `False`.
+    `b` : flip image horizontally if True. Default = `False`.
+    `d` : flip image vertically if True. Default = `False`.
     """
     # declare two lists to store corner coordinates
     corner_x = []
@@ -501,8 +496,7 @@ def pyplot_create_region(
     if j != "":
         # open image with PIL
         img = Image.open(j)
-        # rotate or flip the image when needed
-
+        # flip image if needed
         if b is True:
             img = img.transpose(method=Image.Transpose.FLIP_LEFT_RIGHT)
         if d is True:
@@ -531,7 +525,6 @@ def csvset_modify_concat(
 
     `file_path` : .csv file name with full path.
     `new_value` : values to write into the file.
-
     -----------------------------------------------------------------------------------------------
     #### Optional:
     `file_name` : name of the .csv file to edit = `"_coordinates.csv"`.
