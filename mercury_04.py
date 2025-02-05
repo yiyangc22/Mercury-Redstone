@@ -76,7 +76,6 @@ def preview(exp, typ):
                 for file in os.listdir(entry):
                     if file[-4:] == typ:
                         images.append(os.path.join(folder, entry, file))
-                        print(os.path.join(folder, entry, file))
     # read .csv, save xy coordinates in list, and print
     csv = pd.read_csv(coords).values.tolist()
     coords = []
@@ -85,7 +84,7 @@ def preview(exp, typ):
         coords.append([row[1], row[2]])
     # create regions in matplotlib based on the coordinates
     for i, coord in enumerate(coords):
-        pyplot_create_region(coord[0], coord[1], 300, 300, i=i, j=images[i], a=0.5, r=180)
+        pyplot_create_region(coord[0], coord[1], 300, 300, i=i, j=images[i], a=0.5, b=True, d=True)
     plt.gca().set_aspect('equal')
     plt.gcf().set_figheight(10)
     plt.gcf().set_figwidth(10)
