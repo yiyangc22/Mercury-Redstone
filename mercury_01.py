@@ -3,6 +3,7 @@ Mercury 01: image scheme constructor, project version 1.2 (with python 3.9).
 """
 
 import os
+import math
 import tkinter
 import customtkinter
 import numpy as np
@@ -14,8 +15,7 @@ WINDOW_TXT = "Mercury I - Image Scheme Constructor"
 WINDOW_RES = "900x600"
 PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
 PARAMS_FCS = ["No Autofocus", "Image Based", "Nikon PFS"]
-PARAMS_RES = 225
-PARAMS_GAP = 0
+PARAMS_RES = 300
 
 
 # ===================================== customtkinter classes =====================================
@@ -95,25 +95,18 @@ class App(customtkinter.CTk, Moa):
         """
         rtn = []
         itr = 0
-        typ = 0
         # for all the entry frames created
         for i in range(1, len(self.frm_lst.frames)):
-            # find the autofocusing method
-            for j, fcs in enumerate(PARAMS_FCS):
-                if fcs == self.frm_lst.frames[i].inp_drp.get():
-                    typ = j
             # get user inputs from entries
             try:
                 rtn.append(
-                    scheme_create_subgrp(
-                        float(self.frm_lst.frames[i].inp_ctx.get()),
-                        float(self.frm_lst.frames[i].inp_cty.get()),
-                        float(self.frm_lst.frames[i].inp_dms.get()),
-                        float(self.ent_res.get()),
-                        PARAMS_GAP,
-                        itr,
-                        typ,
-                        bool(self.frm_lst.frames[i].inp_chk.get())
+                    scheme_create_global(
+                        float(self.frm_lst.frames[i].inp_minx.get()),
+                        float(self.frm_lst.frames[i].inp_maxx.get()),
+                        float(self.frm_lst.frames[i].inp_miny.get()),
+                        float(self.frm_lst.frames[i].inp_maxy.get()),
+                        bool(self.frm_lst.frames[i].inp_pfs.get()),
+                        PARAMS_RES
                     )
                 )
                 itr += len(rtn[i-1][0])
@@ -221,16 +214,16 @@ class Ent(customtkinter.CTkFrame):
         self.lbl_itr = customtkinter.CTkLabel(master=self, width=28, text=f"{item}")
         self.lbl_itr.grid(row=0, column=0, padx=5, pady=5)
         # create input entry boxes
-        self.inp_ctx = customtkinter.CTkEntry(master=self, width=120, placeholder_text="Center X")
-        self.inp_ctx.grid(row=0, column=1, padx=5, pady=5)
-        self.inp_cty = customtkinter.CTkEntry(master=self, width=120, placeholder_text="Center Y")
-        self.inp_cty.grid(row=0, column=2, padx=5, pady=5)
-        self.inp_dms = customtkinter.CTkEntry(master=self, width=120, placeholder_text="Dimension")
-        self.inp_dms.grid(row=0, column=3, padx=5, pady=5)
-        self.inp_drp = customtkinter.CTkOptionMenu(master=self, width=120, values=PARAMS_FCS)
-        self.inp_drp.grid(row=0, column=4, padx=5, pady=5)
-        self.inp_chk = customtkinter.CTkCheckBox(master=self, width=120, text="Fast Autofocus")
-        self.inp_chk.grid(row=0, column=5, padx=(5,25), pady=5)
+        self.inp_minx = customtkinter.CTkEntry(master=self, width=120, placeholder_text="Min X")
+        self.inp_minx.grid(row=0, column=1, padx=5, pady=5)
+        self.inp_maxx = customtkinter.CTkEntry(master=self, width=120, placeholder_text="Max X")
+        self.inp_maxx.grid(row=0, column=2, padx=5, pady=5)
+        self.inp_miny = customtkinter.CTkEntry(master=self, width=120, placeholder_text="Min Y")
+        self.inp_miny.grid(row=0, column=3, padx=5, pady=5)
+        self.inp_maxy = customtkinter.CTkEntry(master=self, width=120, placeholder_text="Max Y")
+        self.inp_maxy.grid(row=0, column=4, padx=5, pady=5)
+        self.inp_pfs = customtkinter.CTkCheckBox(master=self, width=120, text="Enable PFS")
+        self.inp_pfs.grid(row=0, column=5, padx=(5,25), pady=5)
         # create extra option menu
         self.btn_mup = customtkinter.CTkButton(
             master = self,
@@ -348,93 +341,91 @@ def scheme_export_packed(
     return (lst, fcs, pth)
 
 
-def scheme_create_subgrp(
-        cursor_x: float,        # cursor x coordinate for this subgroup             float / int
-        cursor_y: float,        # cursor y coordinate for this subgroup             float / int
-        region_n: int,          # number of FOV scans, on one side of a subgroup    int
-                                # (i.e. a 4x4 subgroup should have region_n = 4)
-        region_s: float,        # xy size of FOV scans in given units               float / int
-        region_d: float,        # distance between adjacent FOV scans               float / int
-        region_i: int = 0,      # iteration mark before the first FOV               int
-        region_p: int = 0,      # the autofocus methods to be applied               int
-        region_b: bool = False  # enable fast autofocusing while true               bool
+def scheme_create_global(
+        min_x: float,
+        max_x: float,
+        min_y: float,
+        max_y: float,
+        scan_pfs: bool,
+        scan_res: float,
 ):
     """
     ### Return a tuple of xy coordinates and the autofocus scheme, passing a plot preview.
 
-    `x` : center x coordinate.
-    `y` : center y coordinate.
-    `n` : number of FOV scans on each side of the subgroup.
-    `s` : xy size of FOV scans in given units.
-    `d` : distance between adjacent FOV scans.
-    -----------------------------------------------------------------------------------------------
-    #### Optional:
-    `i` : iteration mark before the first FOV = `0`.
-    `p` : plot color pattern for autofocusing = `0`.
-    `b` : enable fast autofocusing while true = `False`.
+    `min_x` : minimum x value (left).
+    `max_x` : maximum x value (right).
+    `min_y` : minimum y value (down).
+    `max_y` : maximum y value (up).
+    `scan_pfs` : if Nikon PFS will be activated.
+    `scan_res` : scan resolution of each image (IU or um).
     """
-    # ------------------------------ initialize and adjust variables ------------------------------
-    r = region_s + region_d     # distance between the centers of adjacent FOVs
-    c = "down"                  # cardinal directions for the cursor to move to
-    x = cursor_x                # cursor x position, initially at the center of the subgroup
-    y = cursor_y                # cursor y position, initially at the center of the subgroup
-    i = 0                       # index of the FOV that the cursor is currently at
-    j = 0                       # number of times the append direction was changed
-    k = 0                       # number of times the cursor moves before it turns
-    rtn = []                    # return list
-    # if region_n is even, adjust cursor xy to the center of adjacent FOV at the lower-right corner
-    if (region_n % 2) == 0:
-        cursor_x += (0.5 * r)
-        cursor_y -= (0.5 * r)
-        x += (0.5 * r)
-        y -= (0.5 * r)
-    # ---------------------------------------- loop starts ----------------------------------------
-    # spiral counter-clockwise outward, loop until all center coordinates for all FOVs are appended
-    while i < (region_n * region_n):
-        # for every 2 changes in the appending direction, l += 1
-        if (j % 2) == 0:
-            k += 1
-        # turn the appending direction counter-clockwise
-        # switch case is not compatable with python v3.9
-        if c == "left":
-            c = "up"
-        elif c == "up":
-            c = "right"
-        elif c == "right":
-            c = "down"
-        elif c == "down":
-            c = "left"
-        # move the cursor as it appends its location for l times
-        for _ in range(0, k):
-            # increment the number of FOVs appended
-            i += 1
-            # append the current cursor coordinates as a 1D list
-            rtn.append([x, y])
-            # save a preview of the current FOV area into pyplot
-            if region_p == 0:
-                pyplot_create_region(x, y, region_s, region_s, c="g", e="g", i=region_i+i)
-            elif region_b is True:
-                if i != 1:
-                    pyplot_create_region(x, y, region_s, region_s, c="g", e="g", i=region_i+i)
+    # make sure scan resolution is constant and always positive
+    RES = abs(scan_res)
+    # make sure PFS setting is constant
+    PFS = scan_pfs
+    FOCUS_M = 2 if PFS else 0
+    # find center coordinates, tissue ranges, and scan dimensions
+    CENTER_X = round((max_x + min_x) / 2)   # must be int
+    CENTER_Y = round((max_y + min_y) / 2)   # must be int
+    RANGE_X = abs(max_x - min_x)            # must be positive
+    RANGE_Y = abs(max_y - min_y)            # must be positive
+    DIM_X = math.ceil(RANGE_X / RES)        # must be int
+    DIM_Y = math.ceil(RANGE_Y / RES)        # must be int
+    # initialize local variables
+    current_x = 0
+    current_y = 0
+    current_i = 0
+    rtn = []
+    # find start coordinates (on the top-left corner) of the tissue
+    current_x = CENTER_X - math.floor(DIM_X / 2) * RES
+    current_y = CENTER_Y + math.floor(DIM_Y / 2) * RES
+    # loop through all imaging positions (in an S-shape order)
+    # append xy coordinates, pfs, and store a preview into pyplot
+    for row in range(0, DIM_Y):
+        # in every row, only loop to the second last image
+        for _ in range(0, (DIM_X-1)):
+            # first append the image's coordinates
+            rtn.append([current_x, current_y])
+            # store a preview area in pyplot
+            pyplot_create_region(
+                current_x,
+                current_y,
+                RES,
+                RES,
+                c = 'b' if PFS else 'g',
+                e = 'b' if PFS else 'g',
+                i = current_i
+            )
+            # then, move the coordinates based on which row it sits
+            if row % 2 == 0:
+                # if it's an even number row, move to the right
+                current_x += RES
             else:
-                pyplot_create_region(x, y, region_s, region_s, c="b", e="b", i=region_i+i)
-            # move to the next FOV depending on cursor direction
-            if c == "left":     # move one FOV left
-                x -= r
-            elif c == "up":     # move one FOV up
-                y += r
-            elif c == "right":  # move one FOV right
-                x += r
-            elif c == "down":   # move one FOV down
-                y -= r
-        # increment the number of turns
-        j += 1
-    # ----------------------------------------- loop ends -----------------------------------------
-    # redraw the area for the first FOV to view on the top layer
-    if  region_p != 0 and region_b is True:
-        pyplot_create_region(cursor_x, cursor_y, region_s, region_s, c="b", e="b", i=region_i+1)
-    # return rtn once the loop ends
-    return (rtn, region_p, region_b)
+                # if it's an odd number row, move to the left
+                current_x -= RES
+            # increment the number of images taken
+            current_i += 1
+        # now the xy coordinates are parked at the last image of the row
+        # append the current xy coordinates to save this last image
+        rtn.append([current_x, current_y])
+        # store a preview area in pyplot
+        pyplot_create_region(
+            current_x,
+            current_y,
+            RES,
+            RES,
+            c = 'b' if PFS else 'g',
+            e = 'b' if PFS else 'g',
+            i = current_i
+        )
+        # then instead of moving the x coordinate, move the y coordinate
+        # this will move the current xy coordinates to the next row
+        current_y -= RES
+        # increment the number of images taken
+        current_i += 1
+    # return compiled xy coordinates and autofocus methods
+    # the format is held constant with `scheme_create_subgrp` function
+    return (rtn, FOCUS_M, False)
 
 
 def pyplot_create_region(
@@ -459,6 +450,7 @@ def pyplot_create_region(
     `y` : center y coordinate.
     `w` : size of FOV over x axis.
     `h` : size of FOV over y axis.
+
     -----------------------------------------------------------------------------------------------
     #### Optional:
     `c` : color to be used to plot the center. Default = `'b'` *(blue)*.
@@ -549,7 +541,7 @@ def csvset_modify_concat(
 # ========================================= main function =========================================
 
 def mercury_01(
-        initial_d = None
+        _ = None
 ):
     """
     Main application loop of mercury 01, return user inputs when loop ended.
@@ -561,17 +553,6 @@ def mercury_01(
     app = App()
     app.resizable(False, False)
     app.mainloop()
-    # # return raw coordinates if no initial xy are given
-    # # if initial xy are given, return the changes of xy
-    # if initial_d is not None:
-    #     coords, foci, paths = app.rtn
-    #     lst = [[coords[0][0] - initial_d[0], coords[0][1] - initial_d[1]]]
-    #     for i in range(1, len(app.rtn[0])):
-    #         lst.append([
-    #             coords[i][0] - coords[i-1][0],
-    #             coords[i][1] - coords[i-1][1],
-    #         ])
-    #     app.rtn = (lst, foci, paths)
     try:
         return app.rtn
     except AttributeError:
