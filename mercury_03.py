@@ -13,8 +13,9 @@ WINDOW_TXT = "Mercury III - Fluid Scheme Constructor"
 WINDOW_RES = "900x600"
 PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")               # desktop folder path
 PARAMS_DFT = os.path.join(PARAMS_DTP, "_latest")                            # default folder path
-PARAMS_CSV = os.path.join(PARAMS_DFT, "_coordinates.csv")                   # default coordinates
-PARAMS_CMD = ["Laser", "Fluidics", "Wait", "All"]                            # instrument commands
+PARAMS_RTN = "_coordinates.csv"
+PARAMS_CSV = os.path.join(PARAMS_DFT, PARAMS_RTN)                           # default coordinates
+PARAMS_CMD = ["Laser", "Fluidics", "Wait", "All"]                           # instrument commands
 PARAMS_LSR = ["2P", "2P+Img"]                                               # laser mask commands
 
 
@@ -233,7 +234,7 @@ class Apd(customtkinter.CTkFrame):
         """
         Function: import scan scheme from experiment folders.
         """
-        loc = pandas.read_csv(os.path.join(dirc, "_coordinates.csv")).values.tolist()
+        loc = pandas.read_csv(os.path.join(dirc, PARAMS_RTN)).values.tolist()
         img = []
         with os.scandir(dirc) as entries:
             for entry in entries:
