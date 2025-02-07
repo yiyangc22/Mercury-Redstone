@@ -3,14 +3,16 @@ Mercury 04: image stitching previews, project version 1.2 (with python 3.9).
 """
 
 import os
-import pandas as pd
 import tkinter as tk
+import pandas as pd
 import customtkinter
 import matplotlib.pyplot as plt
 from mercury_01 import pyplot_create_region
 
 WINDOW_TXT = "Mercury IV - Image Stitching Preview"
 WINDOW_RES = "800x100"
+PARAMS_RTN = "_coordinates.csv"
+
 
 # ===================================== customtkinter classes =====================================
 
@@ -67,7 +69,7 @@ def preview(exp, typ):
     # subgroup with tif images
     folder = os.path.join(os.path.expanduser("~"), "Desktop", exp)
     # .csv coordinates
-    coords = os.path.join(os.path.expanduser("~"), "Desktop", exp, "_coordinates.csv")
+    coords = os.path.join(os.path.expanduser("~"), "Desktop", exp, PARAMS_RTN)
     # read folder, save image paths in list, and print
     images = []
     with os.scandir(folder) as entries:
