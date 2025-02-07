@@ -16,6 +16,7 @@ WINDOW_RES = "900x600"
 PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
 PARAMS_FCS = ["No Autofocus", "Image Based", "Nikon PFS"]
 PARAMS_RES = 300
+PARAMS_RTN = "_coordinates.csv"
 
 
 # ===================================== customtkinter classes =====================================
@@ -335,7 +336,7 @@ def scheme_export_packed(
     # create folders and csv file for coordinate pairs if necessary
     if scheme_s is True:
         # create new csv or overwrite existing csv file in scheme_p
-        path = os.path.join(loc, "_coordinates.csv")
+        path = os.path.join(loc, PARAMS_RTN)
         df = pd.DataFrame({'x':[], 'y':[], 'z':[]})
         df.to_csv(path)
     return (lst, fcs, pth)
@@ -509,17 +510,17 @@ def pyplot_create_region(
 def csvset_modify_concat(
         file_path,
         new_value,
-        file_name = "_coordinates.csv",
+        file_name = PARAMS_RTN,
         end_level = 0
 ):
     """
-    ### Open an existing _coordinates.csv file, concatenate a set of xyz values.
+    ### Open an existing log file, concatenate a set of xyz values.
 
     `file_path` : .csv file name with full path.
     `new_value` : values to write into the file.
     -----------------------------------------------------------------------------------------------
     #### Optional:
-    `file_name` : name of the .csv file to edit = `"_coordinates.csv"`.
+    `file_name` : name of the .csv file to edit = `"${PARAMS_LOG}"`.
     `end_level` : strings to cut from file_path = `0`.
     """
     # find target .csv file first if end_level is not 0
