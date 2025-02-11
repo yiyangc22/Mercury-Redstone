@@ -15,7 +15,7 @@ WINDOW_TXT = "Mercury I - Image Scheme Constructor"
 WINDOW_RES = "900x600"
 PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
 PARAMS_FCS = ["No Autofocus", "Image Based", "Nikon PFS"]
-PARAMS_RES = 300
+PARAMS_RES = 330
 PARAMS_RTN = "_coordinates.csv"
 
 
