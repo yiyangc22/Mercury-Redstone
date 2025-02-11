@@ -11,6 +11,7 @@ from mercury_01 import pyplot_create_region
 
 WINDOW_TXT = "Mercury IV - Image Stitching Preview"
 WINDOW_RES = "800x100"
+PARAMS_RES = 330
 PARAMS_RTN = "_coordinates.csv"
 
 
@@ -86,7 +87,17 @@ def preview(exp, typ):
         coords.append([row[1], row[2]])
     # create regions in matplotlib based on the coordinates
     for i, coord in enumerate(coords):
-        pyplot_create_region(coord[0], coord[1], 300, 300, i=i, j=images[i], a=0.5, b=True, d=True)
+        pyplot_create_region(
+            coord[0],
+            coord[1],
+            PARAMS_RES,
+            PARAMS_RES,
+            i = i,
+            j = images[i],
+            a = 0.5,
+            b = True,
+            d = True
+        )
     plt.gca().set_aspect('equal')
     plt.gcf().set_figheight(10)
     plt.gcf().set_figwidth(10)
