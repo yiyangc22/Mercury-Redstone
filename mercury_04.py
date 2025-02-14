@@ -13,6 +13,7 @@ WINDOW_TXT = "Mercury IV - Image Stitching Preview"
 WINDOW_RES = "800x100"
 PARAMS_RES = 330
 PARAMS_RTN = "_coordinates.csv"
+PARAMS_AFX = ".tif"
 
 
 # ===================================== customtkinter classes =====================================
@@ -32,18 +33,25 @@ class App(customtkinter.CTk):
         # -------------------------------------- GUI setting --------------------------------------
         self.inp_exp = customtkinter.CTkEntry(
             master = self,
-            width = 185,
+            width = 105,
             height = 30,
             textvariable = tk.StringVar(master=self, value="_latest")
         )
         self.inp_exp.grid(row=0, column=0, padx=(10,5), pady=5, sticky="nesw")
         self.inp_typ = customtkinter.CTkEntry(
             master = self,
-            width = 185,
+            width = 105,
             height = 30,
-            textvariable = tk.StringVar(master=self, value=".tif")
+            textvariable = tk.StringVar(master=self, value=PARAMS_AFX)
         )
-        self.inp_typ.grid(row=0, column=1, padx=(5,10), pady=5, sticky="nesw")
+        self.inp_typ.grid(row=0, column=1, padx=(5,5), pady=5, sticky="nesw")
+        self.inp_res = customtkinter.CTkEntry(
+            master = self,
+            width = 105,
+            height = 30,
+            textvariable = tk.StringVar(master=self, value=PARAMS_RES)
+        )
+        self.inp_res.grid(row=0, column=2, padx=(5,10), pady=5, sticky="nesw")
         self.btn_prv = customtkinter.CTkButton(
             master = self,
             width = 380,
@@ -51,19 +59,19 @@ class App(customtkinter.CTk):
             text = "Preview",
             command = self.app_exp
         )
-        self.btn_prv.grid(row=1, column=0, padx=10, pady=5, sticky="nesw", columnspan=2)
+        self.btn_prv.grid(row=1, column=0, padx=10, pady=5, sticky="nesw", columnspan=3)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on call ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def app_exp(self):
         """
         Function: commence preview and close.
         """
-        preview(self.inp_exp.get(), self.inp_typ.get())
+        preview(self.inp_exp.get(), self.inp_typ.get(), self.inp_res.get())
         self.quit()
 
 
 # ===================================== independent functions =====================================
 
-def preview(exp, typ):
+def preview(exp, typ, res):
     """
     Function: construct pyplot preview
     """
@@ -77,7 +85,7 @@ def preview(exp, typ):
         for entry in entries:
             if entry.is_dir():
                 for file in os.listdir(entry):
-                    if file[-4:] == typ:
+                    if file[-len(typ):] == typ:
                         images.append(os.path.join(folder, entry, file))
     # read .csv, save xy coordinates in list, and print
     csv = pd.read_csv(coords).values.tolist()
@@ -90,8 +98,8 @@ def preview(exp, typ):
         pyplot_create_region(
             coord[0],
             coord[1],
-            PARAMS_RES,
-            PARAMS_RES,
+            res,
+            res,
             i = i,
             j = images[i],
             a = 0.5,
