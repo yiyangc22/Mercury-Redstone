@@ -15,7 +15,7 @@ WINDOW_TXT = "Mercury I - Image Scheme Constructor"
 WINDOW_RES = "900x600"
 PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
 PARAMS_FCS = ["No Autofocus", "Image Based", "Nikon PFS"]
-PARAMS_RES = 330
+PARAMS_RES = 366
 PARAMS_RTN = "_coordinates.csv"
 
 
@@ -106,7 +106,7 @@ class App(customtkinter.CTk, Moa):
                         float(self.frm_lst.frames[i].inp_maxx.get()),
                         float(self.frm_lst.frames[i].inp_miny.get()),
                         float(self.frm_lst.frames[i].inp_maxy.get()),
-                        bool(self.frm_lst.frames[i].inp_pfs.get()),
+                        int(self.frm_lst.frames[i].inp_crn.get()),
                         PARAMS_RES
                     )
                 )
@@ -223,8 +223,8 @@ class Ent(customtkinter.CTkFrame):
         self.inp_miny.grid(row=0, column=3, padx=5, pady=5)
         self.inp_maxy = customtkinter.CTkEntry(master=self, width=120, placeholder_text="Max Y")
         self.inp_maxy.grid(row=0, column=4, padx=5, pady=5)
-        self.inp_pfs = customtkinter.CTkCheckBox(master=self, width=120, text="Enable PFS")
-        self.inp_pfs.grid(row=0, column=5, padx=(5,25), pady=5)
+        self.inp_crn=customtkinter.CTkEntry(master=self,width=120,placeholder_text="Corner Radii")
+        self.inp_crn.grid(row=0, column=5, padx=(5,25), pady=5)
         # create extra option menu
         self.btn_mup = customtkinter.CTkButton(
             master = self,
@@ -347,7 +347,7 @@ def scheme_create_global(
         max_x: float,
         min_y: float,
         max_y: float,
-        scan_pfs: bool,
+        scan_crn: int,
         scan_res: float,
 ):
     """
@@ -357,13 +357,14 @@ def scheme_create_global(
     `max_x` : maximum x value (right).
     `min_y` : minimum y value (down).
     `max_y` : maximum y value (up).
-    `scan_pfs` : if Nikon PFS will be activated.
+    `scan_crn` : corner radius of the scan scheme.
     `scan_res` : scan resolution of each image (IU or um).
     """
-    # make sure scan resolution is constant and always positive
+    # make sure scan resolution and corner radii are constant and always positive
     RES = abs(scan_res)
+    CRN = abs(scan_crn)
     # make sure PFS setting is constant
-    PFS = scan_pfs
+    PFS = True
     FOCUS_M = 2 if PFS else 0
     # find center coordinates, tissue ranges, and scan dimensions
     CENTER_X = round((max_x + min_x) / 2)   # must be int
@@ -372,6 +373,8 @@ def scheme_create_global(
     RANGE_Y = abs(max_y - min_y)            # must be positive
     DIM_X = math.ceil(RANGE_X / RES)        # must be int
     DIM_Y = math.ceil(RANGE_Y / RES)        # must be int
+    # initialize corner mapping and return variable
+    MAP = scheme_create_crnmap(DIM_Y, DIM_X, CRN)
     # initialize local variables
     current_x = 0
     current_y = 0
@@ -382,51 +385,129 @@ def scheme_create_global(
     current_y = CENTER_Y + math.floor(DIM_Y / 2) * RES
     # loop through all imaging positions (in an S-shape order)
     # append xy coordinates, pfs, and store a preview into pyplot
-    for row in range(0, DIM_Y):
-        # in every row, only loop to the second last image
-        for _ in range(0, (DIM_X-1)):
-            # first append the image's coordinates
-            rtn.append([current_x, current_y])
-            # store a preview area in pyplot
-            pyplot_create_region(
-                current_x,
-                current_y,
-                RES,
-                RES,
-                c = 'b' if PFS else 'g',
-                e = 'b' if PFS else 'g',
-                i = current_i
-            )
-            # then, move the coordinates based on which row it sits
-            if row % 2 == 0:
-                # if it's an even number row, move to the right
-                current_x += RES
+    for row in range(DIM_Y):
+        for col in range(DIM_X):
+            # if the image is a center image (stored as 0 in MAP)
+            if MAP[row][col] == 0:
+                # first append the image's coordinates
+                rtn.append([current_x, current_y])
+                # store a preview area in pyplot
+                pyplot_create_region(
+                    current_x,
+                    current_y,
+                    RES,
+                    RES,
+                    c = 'b' if PFS else 'g',
+                    e = 'b' if PFS else 'g',
+                    i = current_i
+                )
+                # increment the number of images taken
+                current_i += 1
+            # move the coordinates to the next region
+            if col != (DIM_X - 1):
+                # move the coordinates based on which row it sits
+                if row % 2 == 0:
+                    # if it's an even number row, move to the right
+                    current_x += RES
+                else:
+                    # if it's an odd number row, move to the left
+                    current_x -= RES
             else:
-                # if it's an odd number row, move to the left
-                current_x -= RES
-            # increment the number of images taken
-            current_i += 1
-        # now the xy coordinates are parked at the last image of the row
-        # append the current xy coordinates to save this last image
-        rtn.append([current_x, current_y])
-        # store a preview area in pyplot
-        pyplot_create_region(
-            current_x,
-            current_y,
-            RES,
-            RES,
-            c = 'b' if PFS else 'g',
-            e = 'b' if PFS else 'g',
-            i = current_i
-        )
-        # then instead of moving the x coordinate, move the y coordinate
-        # this will move the current xy coordinates to the next row
-        current_y -= RES
-        # increment the number of images taken
-        current_i += 1
+                # then instead of moving the x coordinate, move the y coordinate
+                # this will move the current xy coordinates to the next row
+                current_y -= RES
     # return compiled xy coordinates and autofocus methods
     # the format is held constant with `scheme_create_subgrp` function
     return (rtn, FOCUS_M, False)
+
+
+def scheme_create_subgrp(
+        cursor_x: float,        # cursor x coordinate for this subgroup             float / int
+        cursor_y: float,        # cursor y coordinate for this subgroup             float / int
+        region_n: int,          # number of FOV scans, on one side of a subgroup    int
+                                # (i.e. a 4x4 subgroup should have region_n = 4)
+        region_s: float,        # xy size of FOV scans in given units               float / int
+        region_d: float,        # distance between adjacent FOV scans               float / int
+        region_i: int = 0,      # iteration mark before the first FOV               int
+        region_p: int = 0,      # the autofocus methods to be applied               int
+        region_b: bool = False  # enable fast autofocusing while true               bool
+):
+    """
+    ### Return a tuple of xy coordinates and the autofocus scheme, passing a plot preview.
+
+    `x` : center x coordinate.
+    `y` : center y coordinate.
+    `n` : number of FOV scans on each side of the subgroup.
+    `s` : xy size of FOV scans in given units.
+    `d` : distance between adjacent FOV scans.
+    -----------------------------------------------------------------------------------------------
+    #### Optional:
+    `i` : iteration mark before the first FOV = `0`.
+    `p` : plot color pattern for autofocusing = `0`.
+    `b` : enable fast autofocusing while true = `False`.
+    """
+    # ------------------------------ initialize and adjust variables ------------------------------
+    r = region_s + region_d     # distance between the centers of adjacent FOVs
+    c = "down"                  # cardinal directions for the cursor to move to
+    x = cursor_x                # cursor x position, initially at the center of the subgroup
+    y = cursor_y                # cursor y position, initially at the center of the subgroup
+    i = 0                       # index of the FOV that the cursor is currently at
+    j = 0                       # number of times the append direction was changed
+    k = 0                       # number of times the cursor moves before it turns
+    rtn = []                    # return list
+    # if region_n is even, adjust cursor xy to the center of adjacent FOV at the lower-right corner
+    if (region_n % 2) == 0:
+        cursor_x += (0.5 * r)
+        cursor_y -= (0.5 * r)
+        x += (0.5 * r)
+        y -= (0.5 * r)
+    # ---------------------------------------- loop starts ----------------------------------------
+    # spiral counter-clockwise outward, loop until all center coordinates for all FOVs are appended
+    while i < (region_n * region_n):
+        # for every 2 changes in the appending direction, l += 1
+        if (j % 2) == 0:
+            k += 1
+        # turn the appending direction counter-clockwise
+        # switch case is not compatable with python v3.9
+        if c == "left":
+            c = "up"
+        elif c == "up":
+            c = "right"
+        elif c == "right":
+            c = "down"
+        elif c == "down":
+            c = "left"
+        # move the cursor as it appends its location for l times
+        for _ in range(0, k):
+            # increment the number of FOVs appended
+            i += 1
+            # append the current cursor coordinates as a 1D list
+            rtn.append([x, y])
+            # save a preview of the current FOV area into pyplot
+            if region_p == 0:
+                pyplot_create_region(x, y, region_s, region_s, c="g", e="g", i=region_i+i)
+            elif region_b is True:
+                if i != 1:
+                    pyplot_create_region(x, y, region_s, region_s, c="g", e="g", i=region_i+i)
+            else:
+                pyplot_create_region(x, y, region_s, region_s, c="b", e="b", i=region_i+i)
+            # move to the next FOV depending on cursor direction
+            if c == "left":     # move one FOV left
+                x -= r
+            elif c == "up":     # move one FOV up
+                y += r
+            elif c == "right":  # move one FOV right
+                x += r
+            elif c == "down":   # move one FOV down
+                y -= r
+        # increment the number of turns
+        j += 1
+    # ----------------------------------------- loop ends -----------------------------------------
+    # redraw the area for the first FOV to view on the top layer
+    if  region_p != 0 and region_b is True:
+        pyplot_create_region(cursor_x, cursor_y, region_s, region_s, c="b", e="b", i=region_i+1)
+    # return rtn once the loop ends
+    return (rtn, region_p, region_b)
 
 
 def pyplot_create_region(
@@ -505,6 +586,38 @@ def pyplot_create_region(
     else:
         # graph rectX - recty with linestyle '-'
         plt.plot(corner_x, corner_y, '-', color=e, alpha=a)
+
+
+def scheme_create_crnmap(
+        row: int,
+        col: int,
+        crn: int,
+):
+    """
+    ### Return a 2d list of int values as the mapping for cornered scheme (1 = corner, 0 = center).
+
+    `row` : number of rows in the global scan scheme.
+    `col` : number of columns in the global scan scheme.
+    `crn` : desired corner radius of the scan scheme.
+    """
+    # set up return variable
+    rtn = []
+    # create empty mapping
+    for i in range(0, row):
+        rtn.append([])
+        for _ in range(0, col):
+            rtn[i].append(0)
+    # set corner regions to 1; center regions remain as 0s
+    for i in range(row):
+        if i < crn:  # upper corners
+            rtn[i][: crn - i] = [1] * (crn - i)  # upper left
+            rtn[i][- (crn - i):] = [1] * (crn - i)  # upper right
+        if i >= row - crn:  # lower corners
+            offset = i - (row - crn)
+            rtn[i][: offset + 1] = [1] * (offset + 1)  # lower left
+            rtn[i][- (offset + 1):] = [1] * (offset + 1)  # lower right
+    # flatten the return list, return
+    return rtn
 
 
 def csvset_modify_concat(
