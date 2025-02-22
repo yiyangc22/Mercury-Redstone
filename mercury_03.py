@@ -50,10 +50,58 @@ class App(customtkinter.CTk, Moa):
         """
         Function: commence the export of collected user inputs.
         """
-        rtn = get_csv(self.frm_ctl.ent_pth.get())
+        # variable set up, read csv file
+        rtn = ([],[],[])
+        csv = get_csv(self.frm_ctl.ent_pth.get())
+        # check if there are null values in the command list
+        # then, arrange csv data into compatable format
+        for entry in csv:
+            # assume all commands are valid
+            cmd = [True, True, True]
+            # check if entry has parameters for laser procedure
+            for i in range(0, 5):
+                if entry[i] == '' or entry[i] == 'null':
+                    cmd[0] = False
+                    break
+            # check if entry has parameters for fluidic procedure
+            for i in range(5, 8):
+                if entry[i] == '' or entry[i] == 'null':
+                    cmd[1] = False
+                    break
+            # check if entry has parameters for wait procedure
+            if entry[8] == '' or entry[8] == 'null':
+                cmd[2] = False
+            # append commands into rtn in rearranged format
+            # for laser procedures
+            if cmd[0]:
+                # append command type to rtn[0]
+                if entry[4] == 0:
+                    rtn[0].append(0)
+                else:
+                    rtn[0].append(1)
+                # append laser coordinates to rtn[1]
+                rtn[1].append([float(entry[0]), float(entry[1]), float(entry[2])])
+                # append mask directory to rtn[2]
+                rtn[2].append(entry[3])
+            # for fluidic procedures
+            if cmd[1]:
+                # append command type to rtn[0]
+                rtn[0].append(2)
+                # append fluidic parameters to rtn[1]
+                rtn[1].append([float(entry[5]), float(entry[6]), float(entry[7])])
+                # append empty string to rtn[2]
+                rtn[2].append('')
+            # for wait procedures
+            if cmd[2]:
+                # append command type to rtn[0]
+                rtn[0].append(3)
+                # append wait parameter to rtn[1]
+                rtn[1].append([float(entry[8]), 0.0, 0.0])
+                # append empty string to rtn[2]
+                rtn[2].append('')
+        # return results by saving rtn
         self.rtn = rtn
         self.quit()
-
 
 class Apd(customtkinter.CTkFrame):
     """
@@ -87,9 +135,9 @@ def get_csv(dirc):
     Function: return the content of a designated .csv file in a 2d list.
     """
     rtn = []
-    loc = pandas.read_csv(dirc).values.tolist()
+    loc = pandas.read_csv(dirc, keep_default_na=False).values.tolist()
     for row in enumerate(loc):
-        rtn.append(row)
+        rtn.append(row[1][1:])
     return rtn
 
 
