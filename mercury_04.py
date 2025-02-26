@@ -11,9 +11,9 @@ from mercury_01 import pyplot_create_region
 
 WINDOW_TXT = "Mercury IV - Image Stitching Preview"
 WINDOW_RES = "800x100"
-PARAMS_RES = 330
+PARAMS_RES = 366
 PARAMS_RTN = "_coordinates.csv"
-PARAMS_AFX = ".tif"
+PARAMS_AFX = [".tif", ".png", "_2P.png"]
 
 
 # ===================================== customtkinter classes =====================================
@@ -37,21 +37,21 @@ class App(customtkinter.CTk):
             height = 30,
             textvariable = tk.StringVar(master=self, value="_latest")
         )
-        self.inp_exp.grid(row=0, column=0, padx=(10,5), pady=5, sticky="nesw")
-        self.inp_typ = customtkinter.CTkEntry(
+        self.inp_exp.grid(row=0, column=0, padx=(10,5), pady=5, sticky="ew")
+        self.inp_typ = customtkinter.CTkComboBox(
             master = self,
             width = 105,
             height = 30,
-            textvariable = tk.StringVar(master=self, value=PARAMS_AFX)
+            values = PARAMS_AFX
         )
-        self.inp_typ.grid(row=0, column=1, padx=(5,5), pady=5, sticky="nesw")
+        self.inp_typ.grid(row=0, column=1, padx=(5,5), pady=5)
         self.inp_res = customtkinter.CTkEntry(
             master = self,
             width = 105,
             height = 30,
             textvariable = tk.StringVar(master=self, value=PARAMS_RES)
         )
-        self.inp_res.grid(row=0, column=2, padx=(5,10), pady=5, sticky="nesw")
+        self.inp_res.grid(row=0, column=2, padx=(5,10), pady=5)
         self.btn_prv = customtkinter.CTkButton(
             master = self,
             width = 380,
@@ -65,7 +65,7 @@ class App(customtkinter.CTk):
         """
         Function: commence preview and close.
         """
-        preview(self.inp_exp.get(), self.inp_typ.get(), self.inp_res.get())
+        preview(self.inp_exp.get(), self.inp_typ.get(), int(self.inp_res.get()))
         self.quit()
 
 
@@ -98,13 +98,14 @@ def preview(exp, typ, res):
         pyplot_create_region(
             coord[0],
             coord[1],
-            res,
-            res,
+            res if typ != PARAMS_AFX[1] else (res * (1906/2304)),
+            res if typ != PARAMS_AFX[1] else (res * (2270/2304)),
             i = i,
             j = images[i],
             a = 0.5,
-            b = True,
-            d = True
+            b = True if typ == PARAMS_AFX[1] else False,
+            d = False,
+            r = 90 if typ == PARAMS_AFX[1] else 180
         )
     plt.gca().set_aspect('equal')
     plt.gcf().set_figheight(10)
