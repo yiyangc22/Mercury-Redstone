@@ -524,6 +524,7 @@ def pyplot_create_region(
         a = 1,          # alpha value of all marking elements       float / int
         b = False,      # flip image horizontally                   bool
         d = False,      # flip image vertically                     bool
+        r = 0,          # counter-clockwise rotational angles       int
 ):
     """
     ### Store a rectangle with width = w and height = h at (x,y), marked with i.
@@ -544,6 +545,7 @@ def pyplot_create_region(
     `a` : alpha value of all marking elements. Default = `1`.
     `b` : flip image horizontally if True. Default = `False`.
     `d` : flip image vertically if True. Default = `False`.
+    `r` : counter-clockwise rotational angles. Default = `0`.
     """
     # declare two lists to store corner coordinates
     corner_x = []
@@ -570,11 +572,13 @@ def pyplot_create_region(
     if j != "":
         # open image with PIL
         img = Image.open(j)
-        # flip image if needed
+        # flip or rotate the image if needed
         if b is True:
             img = img.transpose(method=Image.Transpose.FLIP_LEFT_RIGHT)
         if d is True:
             img = img.transpose(method=Image.Transpose.FLIP_TOP_BOTTOM)
+        if r != 0:
+            img = img.rotate(r)
         # store img, stretch its dimension to fit the current FOV
         ax = plt.gca()
         ax.imshow(np.fliplr(np.flipud(img)), extent=(x+0.5*w, x-0.5*w, y+0.5*h, y-0.5*h))
