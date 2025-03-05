@@ -12,8 +12,8 @@ from mercury_01 import pyplot_create_region
 WINDOW_TXT = "Mercury IV - Image Stitching Preview"
 WINDOW_RES = "800x100"
 PARAMS_RES = 366
-PARAMS_RTN = "_coordinates.csv"
-PARAMS_AFX = [".tif", ".png", "_2P.png"]
+PARAMS_EXP = os.path.join(os.path.expanduser("~"), "Desktop", "_latest")
+PARAMS_AFX = ["_MC_F001_Z001.tif", ".png", "_2P_F001_Z001.tif"]
 
 
 # ===================================== customtkinter classes =====================================
@@ -35,12 +35,12 @@ class App(customtkinter.CTk):
             master = self,
             width = 105,
             height = 30,
-            textvariable = tk.StringVar(master=self, value="_latest")
+            textvariable = tk.StringVar(master=self, value=PARAMS_EXP)
         )
         self.inp_exp.grid(row=0, column=0, padx=(10,5), pady=5, sticky="ew")
         self.inp_typ = customtkinter.CTkComboBox(
             master = self,
-            width = 105,
+            width = 150,
             height = 30,
             values = PARAMS_AFX
         )
@@ -76,9 +76,9 @@ def preview(exp, typ, res):
     Function: construct pyplot preview
     """
     # subgroup with tif images
-    folder = os.path.join(os.path.expanduser("~"), "Desktop", exp)
+    folder = exp
     # .csv coordinates
-    coords = os.path.join(os.path.expanduser("~"), "Desktop", exp, PARAMS_RTN)
+    coords = os.path.join(folder, "_coordinates.csv")
     # read folder, save image paths in list, and print
     images = []
     with os.scandir(folder) as entries:
