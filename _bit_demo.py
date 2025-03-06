@@ -148,7 +148,7 @@ BIT_OLIGO_INDEX = [[0, 1, 2, 3, 4, 5, 6, 7, 8, 9], [10,11,12,13,14,15,16,17,18,1
 # predict mask file names based on naming scheme
 mask_sequences = []
 for i in range(BIT_NUM_OF_AREA):
-    mask_sequences.append(str(EXP_MASK_STARTS+i)+EXP_MASK_TRAILS)
+    mask_sequences.append('\\'+str(EXP_MASK_STARTS+i)+EXP_MASK_TRAILS)
 
 # merge coordinate list with predicted mask list
 merged_list = BIT_COORDINATES
