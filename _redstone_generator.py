@@ -9,30 +9,21 @@ import pandas as pd
 ###################################################################################################
 #                                      INDEPENDENT FUNCTIONS                                      #
 
-def generate_digit_sequences(num_images, num_digits):
-    """generate unique digit sequences for a given number of images"""
+def generate_digit_sequences():
+    num_images = 100
+    num_digits = 20
+    first_set = list(range(10))  # Digits 0-9
+    second_set = list(range(10, 20))  # Digits 10-19
+    
+    length = 2  # Fixed length for each sequence (alternating digits)
     unique_sequences = []
-    length = 1
-
-    while len(unique_sequences) < num_images:
-        candidates = product(range(num_digits + 1), repeat=length)
-        seen = set()
-        temp_sequences = []
-
-        for seq in candidates:
-            stripped_seq = tuple(d for d in seq if d != 0)  # Remove placeholders (0s)
-            if stripped_seq and stripped_seq not in seen:  # Ensure it's not empty and unique
-                seen.add(stripped_seq)
-                temp_sequences.append(list(seq))
-            if len(temp_sequences) == num_images:
-                break
-
-        if len(temp_sequences) >= num_images:
-            unique_sequences = temp_sequences[:num_images]
-            break
-
-        length += 1
-
+    
+    for second_digit in second_set:
+        for first_digit in first_set:
+            unique_sequences.append([first_digit, second_digit])
+            if len(unique_sequences) == num_images:
+                return unique_sequences
+    
     return unique_sequences
 
 
