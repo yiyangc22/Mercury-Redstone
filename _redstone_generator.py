@@ -9,22 +9,13 @@ import pandas as pd
 ###################################################################################################
 #                                      INDEPENDENT FUNCTIONS                                      #
 
-def generate_digit_sequences():
-    num_images = 100
-    num_digits = 20
-    first_set = list(range(10))  # Digits 0-9
-    second_set = list(range(10, 20))  # Digits 10-19
+def generate_digit_sequences(num_images, num_digits):
+    length = 1
+    while num_digits ** length < num_images:
+        length += 1
     
-    length = 2  # Fixed length for each sequence (alternating digits)
-    unique_sequences = []
-    
-    for second_digit in second_set:
-        for first_digit in first_set:
-            unique_sequences.append([first_digit, second_digit])
-            if len(unique_sequences) == num_images:
-                return unique_sequences
-    
-    return unique_sequences
+    sequences = list(product(range(num_digits), repeat=length))[:num_images]
+    return [list(seq) for seq in sequences]
 
 
 def get_csv(dirc):
