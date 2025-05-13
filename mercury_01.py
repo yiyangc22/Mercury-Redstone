@@ -19,6 +19,7 @@ PARAMS_CRN = 4
 PARAMS_RES = 366
 PARAMS_FLD = "_latest"
 PARAMS_MCI = "Multichannel Images"
+PARAMS_MSK = "Mask Images"
 PARAMS_CRD = "_coordinates.csv"
 
 
@@ -46,9 +47,9 @@ class App(customtkinter.CTk, Moa):
         self.geometry(WINDOW_RES)
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
-        # -------------------------------------- GUI setting --------------------------------------
         # save the sample z value
         self.sample_z = sample_z
+        # -------------------------------------- GUI setting --------------------------------------
         # create tabviews for global tissue imaging and subgroup imaging
         self.tab_ent = customtkinter.CTkTabview(master=self)
         self.tab_ent.add(PARAMS_TAB[0])
@@ -187,36 +188,39 @@ class App(customtkinter.CTk, Moa):
         Function: get a preview of the scan scheme with pyplot.
         """
         # check which tab is active and read from it
-        if self.tab_ent.get() == PARAMS_TAB[0]:
-            return scheme_export_packed(
-                scheme_create_global(
-                    float(self.inp_minx.get_entry()),
-                    float(self.inp_maxx.get_entry()),
-                    float(self.inp_miny.get_entry()),
-                    float(self.inp_maxy.get_entry()),
-                    int(self.inp_crn.get_entry()),
+        try:
+            if self.tab_ent.get() == PARAMS_TAB[0]:
+                return scheme_export_packed(
+                    scheme_create_global(
+                        float(self.inp_minx.get_entry()),
+                        float(self.inp_maxx.get_entry()),
+                        float(self.inp_miny.get_entry()),
+                        float(self.inp_maxy.get_entry()),
+                        int(self.inp_crn.get_entry()),
+                        float(self.inp_rs0.get_entry())
+                    ),
+                    self.ent_pth.get(),
+                    float(self.inp_rz0.get_entry()),
+                    save,
                     float(self.inp_rs0.get_entry())
-                ),
-                self.ent_pth.get(),
-                self.sample_z,
-                save,
-                float(self.inp_rs0.get_entry())
-            )
-        elif self.tab_ent.get() == PARAMS_TAB[1]:
-            return scheme_export_packed(
-                scheme_create_subgrp(
-                    float(self.inp_ctrx.get_entry()),
-                    float(self.inp_ctry.get_entry()),
-                    int(self.inp_dim.get_entry()),
+                )
+            elif self.tab_ent.get() == PARAMS_TAB[1]:
+                return scheme_export_packed(
+                    scheme_create_subgrp(
+                        float(self.inp_ctrx.get_entry()),
+                        float(self.inp_ctry.get_entry()),
+                        int(self.inp_dim.get_entry()),
+                        float(self.inp_rs1.get_entry())
+                    ),
+                    self.ent_pth.get(),
+                    float(self.inp_rz1.get_entry()),
+                    save,
                     float(self.inp_rs1.get_entry())
-                ),
-                self.ent_pth.get(),
-                self.sample_z,
-                save,
-                float(self.inp_rs1.get_entry())
-            )
-        else:
-            return ([], '', self.sample_z)
+                )
+            else:
+                return ([], '', self.sample_z)
+        except ValueError:
+            print("Warning: parameter format error, check parameter inputs.")
     # ---------------------------------------------------------------------------------------------
     def app_exp(self):
         """
@@ -281,6 +285,8 @@ def scheme_export_packed(
         try:
             # make directory for experiment folder and multichannel image folder
             os.makedirs(os.path.join(p, PARAMS_FLD, PARAMS_MCI))
+            # make directory for laser mask folder and laser image folder
+            os.makedirs(os.path.join(p, PARAMS_FLD, PARAMS_MSK))
             # create file for storing recorded xyz values
             df = pd.DataFrame({'x':[], 'y':[], 'z':[]})
             df.to_csv(os.path.join(p, PARAMS_FLD, PARAMS_CRD))
@@ -467,10 +473,12 @@ def pyplot_create_region(
         v = 'top',      # alignment of the center i to y axis       str / chr
         i = "",         # value to be displayed at the center       (printable)
         j = "",         # image to be displayed at the center       (file path)
-        a = 1,          # alpha value of all marking elements       float / int
-        b = False,      # flip image horizontally                   bool
-        d = False,      # flip image vertically                     bool
-        r = 0,          # counter-clockwise rotational angles       int
+        a = 1,          # alpha value of all graphic elements       float / int
+        g = 1,          # alpha value of all glyphic elements       float / int
+        b = False,      # flip image on W-E direction if True       bool
+        d = False,      # flip image on N-S direction if True       bool
+        r = 0,          # counter-clockwise rotation of image       int
+        t = 0,          # counter-clockwise rotation of texts       int
 ):
     """
     ### Store a rectangle with width = w and height = h at (x,y), marked with i.
@@ -487,10 +495,12 @@ def pyplot_create_region(
     `v` : alignment of the center i to y axis. Default = `'top'`.
     `i` : value to be displayed at the center. Default = `""`.
     `j` : image to be displayed at the center. Default = `""`.
-    `a` : alpha value of all marking elements. Default = `1`.
-    `b` : flip image horizontally if True. Default = `False`.
-    `d` : flip image vertically if True. Default = `False`.
-    `r` : counter-clockwise rotational angles. Default = `0`.
+    `a` : alpha value of all graphic elements. Default = `1`.
+    `g` : alpha value of all glyphic elements. Default = `1`.
+    `b` : flip image on W-E direction if True. Default = `False`.
+    `d` : flip image on N-S direction if True. Default = `False`.
+    `r` : counter-clockwise rotation of image. Default = `0`.
+    `t` : counter-clockwise rotation of texts. Default = `0`.
     """
     # declare two lists to store corner coordinates
     corner_x = []
@@ -512,7 +522,7 @@ def pyplot_create_region(
     corner_y.append(y - 0.5*h)
     # plot i as label
     plt.plot(x, y, 'o', color=c, alpha=a)
-    plt.text(x, y, i, ha=f, va=v, alpha=a)
+    plt.text(x, y, i, ha=f, va=v, alpha=g, rotation=t)
     # plot j as image and rectX - rectY as lines
     if j != "":
         # open image with PIL
@@ -526,7 +536,11 @@ def pyplot_create_region(
             img = img.rotate(r)
         # store img, stretch its dimension to fit the current FOV
         ax = plt.gca()
-        ax.imshow(np.fliplr(np.flipud(img)), extent=(x+0.5*w, x-0.5*w, y+0.5*h, y-0.5*h))
+        ax.imshow(
+            np.fliplr(np.flipud(img)),
+            extent = (x+0.5*w, x-0.5*w, y+0.5*h, y-0.5*h),
+            alpha = a
+        )
         # invert the axes back as imshow will invert x and y axis
         ax.invert_xaxis()
         ax.invert_yaxis()
