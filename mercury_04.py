@@ -102,7 +102,7 @@ def preview(exp, typ, res):
             res if typ != PARAMS_AFX[1] else (res * (2270/2304)),
             i = i,
             j = images[i],
-            a = 0.5,
+            a = 0.85,
             b = True if typ == PARAMS_AFX[1] else False,
             d = False,
             r = 90 if typ == PARAMS_AFX[1] else 180
@@ -123,6 +123,9 @@ def mercury_04():
     customtkinter.set_appearance_mode("dark")
     customtkinter.set_default_color_theme("blue")
     # enter main loop and return user inputs when ended
-    app = App()
-    app.resizable(False, False)
-    app.mainloop()
+    try:
+        app = App()
+        app.resizable(False, False)
+        app.mainloop()
+    except AttributeError:
+        return None
