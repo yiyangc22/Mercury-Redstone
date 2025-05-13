@@ -12,9 +12,9 @@ from PIL import Image
 WINDOW_TXT = "Mercury III - Fluid Scheme Constructor"
 WINDOW_RES = "900x100"
 PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")               # desktop folder path
-PARAMS_DFT = os.path.join(PARAMS_DTP, "_latest")                            # default folder path
-PARAMS_LOG = os.path.join(PARAMS_DFT, "_cleave_cycle.csv")
-PARAMS_IMG = "Subgroup 1"
+PARAMS_EXP = os.path.join(PARAMS_DTP, "_latest")                            # default folder path
+PARAMS_LOG = os.path.join(PARAMS_EXP, "_cleave_cycle.csv")
+PARAMS_LMG = "Mask Images"
 
 
 # ===================================== customtkinter classes =====================================
@@ -53,7 +53,7 @@ class App(customtkinter.CTk, Moa):
         """
         # variable set up, read csv file
         pth = self.frm_ctl.ent_pth.get()
-        fld = os.path.join(get_rtl(pth), PARAMS_IMG)
+        fld = os.path.join(get_rtl(pth), PARAMS_LMG)
         csv = get_csv(pth)
         rtn = ([],fld,pth,[])
         # arrange csv data into compatable format
