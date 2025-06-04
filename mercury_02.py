@@ -56,36 +56,38 @@ class App(customtkinter.CTk):
         BIT_COORDINATES = get_csv(EXP_COORDINATES)
         # number of images/areas to barcode
         BIT_NUM_OF_AREA = len(BIT_COORDINATES)
-        # number of unique oligos avaliable
-        BIT_NUM_MARKERS = 20
+        # number of concatenations (strict)
+        BIT_NUM_CONCATS = 3
         # default area size (um/IU)
         BIT_IMAGE_SIZES = [366,366]
         # list of flow ports for each oligo
         BIT_OLIGO_PORTS = [1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19,21]
-        BIT_OLIGO_INDEX = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9,10,11,12,13,14,15,16,17,18,19]
         # predict mask file names based on naming scheme
         mask_sequences = []
         for i in range(BIT_NUM_OF_AREA):
             mask_sequences.append(str(EXP_MASK_STARTS+i)+EXP_MASK_TRAILS)
-        # merge coordinate list with predicted mask list
-        merged_list = BIT_COORDINATES
-        for i, coordinate in enumerate(merged_list):
-            coordinate.append(mask_sequences[i])
+        # # merge coordinate list with predicted mask list
+        # merged_list = BIT_COORDINATES
+        # for i, coordinate in enumerate(merged_list):
+        #     coordinate.append(mask_sequences[i])
         # generate a bit scheme for each mask image
-        bit_sequences = generate_digit_sequences(BIT_NUM_OF_AREA, BIT_NUM_MARKERS)
-        # replace bit scheme notations with port numbers
-        for sequence in bit_sequences:
-            for i, bit in enumerate(sequence):
-                sequence[i] = BIT_OLIGO_PORTS[bit]
-        # use the bit scheme to map fluidic command
-        fluidic_scheme = []
-        for i in range(len(bit_sequences[0])):
-            for port in BIT_OLIGO_PORTS:
-                for j, sequence in enumerate(bit_sequences):
-                    if sequence[i] == port:
-                        temp = merged_list[j][:]
-                        temp.append(port)
-                        fluidic_scheme.append(temp)
+        bit_sequences = generate_digit_sequences(num_fov = BIT_NUM_OF_AREA,
+                                                 num_concat = BIT_NUM_CONCATS,
+                                                 num_port = len(BIT_OLIGO_PORTS))
+        # # replace bit scheme notations with port numbers
+        # for sequence in bit_sequences:
+        #     for i, bit in enumerate(sequence):
+        #         sequence[i] = BIT_OLIGO_PORTS[bit]
+        # # use the bit scheme to map fluidic command
+        # fluidic_scheme = []
+        # for i in range(len(bit_sequences[0])):
+        #     for port in BIT_OLIGO_PORTS:
+        #         for j, sequence in enumerate(bit_sequences):
+        #             if sequence[i] == port:
+        #                 temp = merged_list[j][:]
+        #                 temp.append(port)
+        #                 fluidic_scheme.append(temp)
+        fluidic_scheme = generate_fluid_sequences(BIT_COORDINATES, mask_sequences, bit_sequences)
         # save the new fluidic scheme to a new file
         dataframe = pd.DataFrame(fluidic_scheme, columns=['x','y','z','mask','port'])
         dataframe.to_csv(EXP_LASER_CYCLE, index=True)
@@ -179,14 +181,34 @@ class Exp(customtkinter.CTkFrame):
 
 # ===================================== independent functions =====================================
 
-def generate_digit_sequences(num_images, num_digits):
-    """generate unique digit sequences for a given number of images"""
-    length = 1
-    while num_digits ** length < num_images:
-        length += 1
-    
-    sequences = list(product(range(num_digits), repeat=length))[:num_images]
-    return [list(seq) for seq in sequences]
+def generate_digit_sequences(num_fov, num_concat = 3, num_port = 20):
+    """generate unique bit sequences for a given number of images"""
+    all_perm = list(product([0, 1], repeat=num_port))
+    rtn_perm = []
+    for perm in all_perm:
+        if sum(perm) == num_concat:
+            rtn_perm.append(list(perm))
+    if num_fov > len(rtn_perm):
+        raise IndexError(f"`num_fov` exceeded max {len(rtn_perm)} for {num_concat} concatenation.")
+    return rtn_perm[:num_fov]
+
+
+def generate_fluid_sequences(xyz_coord, img_paths, bit_scheme):
+    """generate fluidic sequence from a given bit scheme for fovs"""
+    rtn = []
+    len_xyz = len(xyz_coord)
+    len_img = len(img_paths)
+    len_bit = len(bit_scheme)
+    if len_xyz != len_img or len_xyz != len_bit:
+        raise IndexError(f"inconsistent index - coord: {len_xyz}, img: {len_img}, bit: {len_bit}.")
+    for i in len(bit_scheme[0]):
+        for j, fov in enumerate(bit_scheme):
+            if fov[i] == 1:
+                this_rtn = xyz_coord[j]
+                this_rtn.append(img_paths[j])
+                this_rtn.extend(i)
+                rtn.append(this_rtn)
+    return rtn
 
 
 # ========================================= main function =========================================
