@@ -201,12 +201,12 @@ def generate_fluid_sequences(xyz_coord, img_paths, bit_scheme):
     len_bit = len(bit_scheme)
     if len_xyz != len_img or len_xyz != len_bit:
         raise IndexError(f"inconsistent index - coord: {len_xyz}, img: {len_img}, bit: {len_bit}.")
-    for i in len(bit_scheme[0]):
+    for i in range(len(bit_scheme[0])):
         for j, fov in enumerate(bit_scheme):
             if fov[i] == 1:
-                this_rtn = xyz_coord[j]
+                this_rtn = xyz_coord[j][:]
                 this_rtn.append(img_paths[j])
-                this_rtn.extend(i)
+                this_rtn.append(i)
                 rtn.append(this_rtn)
     return rtn
 
