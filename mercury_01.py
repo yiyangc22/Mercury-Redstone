@@ -17,7 +17,7 @@ from PIL import Image
 WINDOW_TXT = "Mercury I - Image Scheme Constructor"
 WINDOW_RES = "807x237"
 PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
-PARAMS_FLD = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
+PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
 PARAMS_TAB = ["Global Tissue", "Square Subgroup"]
 PARAMS_CRN = 4
 PARAMS_RES = 366
@@ -176,7 +176,7 @@ class App(customtkinter.CTk, Moa):
             master = self,
             width = 575,
             height = 28,
-            textvariable = tkinter.StringVar(master=self, value=PARAMS_FLD)
+            textvariable = tkinter.StringVar(master=self, value=PARAMS_EXP)
         )
         self.ent_pth.grid(row=1, column=1, padx=(0,5), pady=5, columnspan=1)
         self.btn_aof = customtkinter.CTkButton(
@@ -209,7 +209,8 @@ class App(customtkinter.CTk, Moa):
             init_dir = PARAMS_DTP,
             init_types = False
         )
-        self.ent_pth.configure(textvariable=tkinter.StringVar(master=self, value=file_path))
+        if file_path != "":
+            self.ent_pth.configure(textvariable=tkinter.StringVar(master=self, value=file_path))
     # ---------------------------------------------------------------------------------------------
     def app_prv(self, save: bool = False):
         """
