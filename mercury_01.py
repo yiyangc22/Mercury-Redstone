@@ -6,6 +6,7 @@ import os
 import math
 import tkinter
 from tkinter import filedialog
+from datetime import date
 
 import customtkinter
 import numpy as np
@@ -16,15 +17,15 @@ from PIL import Image
 WINDOW_TXT = "Mercury I - Image Scheme Constructor"
 WINDOW_RES = "807x237"
 PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
-PARAMS_FLD = os.path.join(PARAMS_DTP, "Latest")
+PARAMS_FLD = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
 PARAMS_TAB = ["Global Tissue", "Square Subgroup"]
 PARAMS_CRN = 4
 PARAMS_RES = 366
-PARAMS_MCI = "Multichannel Images"
-PARAMS_MSK = "Mask Images"
-PARAMS_MAP = "Cleave Maps"
-PARAMS_PLN = "Imaging Coordinates - Planned.csv"
-PARAMS_CRD = "Imaging Coordinates - Recorded.csv"
+PARAMS_MCI = "image_multichannel"
+PARAMS_MSK = "image_mask"
+PARAMS_MAP = "image_cleave_map"
+PARAMS_PLN = "coordinates_planned.csv"
+PARAMS_CRD = "coordinates_recorded.csv"
 
 
 # ===================================== customtkinter classes =====================================
@@ -244,8 +245,8 @@ class App(customtkinter.CTk, Moa):
                     save,
                     float(self.inp_rs1.get_entry())
                 )
-        except ValueError:
-            print("Warning: parameter format error, check parameter inputs.")
+        except (ValueError, TypeError) as e:
+            print(f"Warning: {e}, check parameter input format.")
     # ---------------------------------------------------------------------------------------------
     def app_exp(self):
         """
@@ -254,13 +255,16 @@ class App(customtkinter.CTk, Moa):
         # save return values
         self.rtn = self.app_prv(save=True)
         # save planned xy coordinates
-        planned_coordinates, multichannel_image, _ = self.rtn
-        file_path = os.path.join(os.path.dirname(multichannel_image), PARAMS_PLN)
-        column_names = ["x", "y"]
-        df = pd.DataFrame(planned_coordinates, columns=column_names)
-        df.to_csv(file_path, index=True)
-        # quit customtkinter mainloop
-        self.quit()
+        if self.rtn is not None:
+            planned_coordinates, multichannel_image, _ = self.rtn
+            file_path = os.path.join(os.path.dirname(multichannel_image), PARAMS_PLN)
+            column_names = ["x", "y"]
+            df = pd.DataFrame(planned_coordinates, columns=column_names)
+            df.to_csv(file_path, index=True)
+            # quit customtkinter mainloop
+            self.quit()
+        else:
+            pass
 
 
 class Entry(customtkinter.CTkFrame):
