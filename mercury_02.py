@@ -14,12 +14,28 @@ import matplotlib.pyplot as plt
 from PIL import Image, ImageDraw
 
 from mercury_01 import pyplot_create_region, open_file_dialog
-from mercury_03 import get_csv
 
 WINDOW_TXT = "Mercury II - Laser Scheme Constructor"
 WINDOW_RES = "800x190"
 PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
 PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
+PARAMS_MCI = "image_multichannel"
+PARAMS_MSK = "image_mask"
+PARAMS_MAP = "image_cleave_map"
+PARAMS_PLN = "coord_planned.csv"
+PARAMS_CRD = "coord_recorded.csv"
+PARAMS_GLB = "image_mask_global.png"
+PARAMS_SCT = "coord_scan_center.csv"
+PARAMS_BIT = "config_bit_scheme.csv"
+PARAMS_CFG = [
+                {"width": 144, "label": "  Number of Ports", "textvar": 20, "padx": (10,0)},
+                {"width": 144, "label": "  Scan Size (um)", "textvar": 300, "padx": (10,0)},
+                {"width": 144, "label": "  Concatenations", "textvar": 3, "padx": (10,0)},
+                {"width": 144, "label": "  Subdivision Factor", "textvar": 3, "padx": (10,0)},
+                {"width": 144, "label": "  Cell Count Threshold", "textvar": 100, "padx": (10,10)},
+             ]
+PARAMS_TRL = "_MC_F001_Z001.png"
+
 
 
 # ===================================== customtkinter classes =====================================
@@ -43,11 +59,112 @@ class App(customtkinter.CTk):
         self.frm_prm.grid(row=1, column=0, padx=10, pady=(5,5), sticky="nesw", columnspan=1)
         self.btn_cmc = customtkinter.CTkButton(master=self, text="Commence", command=self.app_exp)
         self.btn_cmc.grid(row=2, column=0, padx=10, pady=(5,10), sticky="nesw", columnspan=1)
+        # ----------------------------------- parameter setting -----------------------------------
+        self.pth_fld = PARAMS_EXP
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on call ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def app_exp(self):
         """
         Function: commence the export of collected user inputs.
         """
+        # collect parameters for global/submask constuction
+        try:
+            # read inputs from entry frames
+            num_ports = int(self.frm_prm.frames_list[0].get_entry())
+            scan_size = int(self.frm_prm.frames_list[1].get_entry())
+            num_conct = int(self.frm_prm.frames_list[2].get_entry())
+            num_subdv = int(self.frm_prm.frames_list[3].get_entry())
+            num_count = int(self.frm_prm.frames_list[4].get_entry())
+        except (ValueError, TypeError, RuntimeError) as e:
+            print(f"Warning: {e}, check parameter input format.")
+        # construct global mask
+        try:
+            # read inputs from entry frames
+            self.pth_fld = self.frm_ctl.ent_pth.get()
+            exp_coord = os.path.join(self.pth_fld, PARAMS_PLN)
+            exp_gmask = os.path.join(self.pth_fld, PARAMS_GLB)
+            # process parameters, save results
+            (successful,
+            _cleave_size,
+            cleave_center_coord_um,
+            cleave_center_coord_px,
+            submask_coordinates_um,
+            submask_coordinates_px
+            ) = global_mask_stitching(
+                mask_folder = os.path.join(self.pth_fld, PARAMS_MSK),
+                multichannel_coordinate = exp_coord,
+                output_file = exp_gmask,
+                mask_affix = PARAMS_TRL,
+                laser_cleave_size_um = scan_size,
+                submask_division = num_subdv,
+                submask_minpixel = num_count
+            )
+            if not successful:
+                print("Error: global mask stitching failed")
+        except (ValueError, TypeError, RuntimeError) as e:
+            print(f"Warning: {e}, check file path and mask/coordinate indexing.")
+            return
+        # save generated cleave center coordinates
+        cleave_centers = []
+        for i, coord_pair in enumerate(cleave_center_coord_um):
+            temp = coord_pair
+            temp.extend(cleave_center_coord_px[i])
+            cleave_centers.append(temp)
+        dataframe = pd.DataFrame(cleave_centers, columns=['x','y','w','n','e','s'])
+        dataframe.to_csv(os.path.join(self.pth_fld, PARAMS_SCT), index=True)
+        # generate bit scheme for all subregions
+        bit_scheme, max_index = generate_digit_sequences(
+            len(submask_coordinates_um),
+            num_conct,
+            num_ports
+        )
+        print(bit_scheme)
+        # convert bit scheme into port sequences
+        port_config = []
+        for sequence in bit_scheme:
+            temp = []
+            for i, bit in enumerate(sequence):
+                if bit == 1:
+                    temp.append(i)
+            port_config.append(temp)
+        # save generated submask laser/port scheme
+        fluidic_scheme = []
+        for i, coord_pair in enumerate(submask_coordinates_um):
+            temp = coord_pair
+            temp.extend(submask_coordinates_px[i][:])
+            temp.append(port_config[i])
+            temp.append(bit_scheme[i])
+            fluidic_scheme.append(temp)
+        dataframe = pd.DataFrame(fluidic_scheme, columns=['x','y','w','n','e','s','index','bit'])
+        dataframe.to_csv(os.path.join(self.pth_fld, PARAMS_BIT), index=True)
+        # generate a new cleave map image
+        global_mask = Image.open(exp_gmask)
+        global_mask_w, global_mask_h = global_mask.size
+        tmp_map = Image.new('P',
+                            (global_mask_w, global_mask_h),
+                            color = (255,255,255))
+        # generate cleavage maps, save cleave image
+        for i in range(max_index):
+            # clear previous cleave mask markings
+            ImageDraw.Draw(tmp_map).rectangle(
+                (0, 0, global_mask_w, global_mask_h),
+                fill = (255,255,255)
+            )
+            # append images for matching submasks
+            for k, indexes in enumerate(fluidic_scheme):
+                if indexes[7][i] == 1:
+                    this_region = global_mask.crop(submask_coordinates_px[k])
+                    tmp_map.paste(this_region, submask_coordinates_px[k])
+            # save cleave map if the port != -1
+            tmp_map.save(os.path.join(self.pth_fld, PARAMS_MAP,('Round '
+                                                                + str(i)
+                                                                + '.png')))
+        # preview saved submask areas in matplotlib
+        plt.gca().set_aspect('equal')
+        plt.gcf().set_figheight(10)
+        plt.gcf().set_figwidth(10)
+        plt.show()
+        # quit customtkinter mainloop
+        self.quit()
 
 
 class Exp(customtkinter.CTkFrame):
@@ -106,14 +223,8 @@ class Sub(customtkinter.CTkFrame):
         super().__init__(master, **kwargs)
         # -------------------------------------- GUI setting --------------------------------------
         # define configuration parameters for submasking
-        frames_config = [
-            {"width": 144, "label": "  Number of Ports", "textvar": 20, "padx": (10,0)},
-            {"width": 144, "label": "  Scan Size (um)", "textvar": 300, "padx": (10,0)},
-            {"width": 144, "label": "  Concatenations", "textvar": 3, "padx": (10,0)},
-            {"width": 144, "label": "  Subdivision Factor", "textvar": 3, "padx": (10,0)},
-            {"width": 144, "label": "  Number of Batches", "textvar": 1, "padx": (10,10)},
-        ]
-        frames_list = []
+        frames_config = PARAMS_CFG
+        self.frames_list = []
         # create frames to control submasking parameters
         for i, config in enumerate(frames_config):
             entry = Entry(
@@ -124,7 +235,7 @@ class Sub(customtkinter.CTkFrame):
                 fg_color = "transparent"
             )
             entry.grid(row=0, column=i, padx=config["padx"], pady=(5,10))
-            frames_list.append(entry)
+            self.frames_list.append(entry)
 
 
 class Entry(customtkinter.CTkFrame):
@@ -165,19 +276,27 @@ class Entry(customtkinter.CTkFrame):
 
 def generate_digit_sequences(num_fov, num_concat=3, num_port=20):
     """
-    ### Generate unique bit sequences for a given number of images.
+    ### Function: generate unique bit sequences for a given number of images.
 
     `num_fov` : Number of sequences to return.
     `num_concat` : Number of ones in each sequence.
     `num_port` : Length of each sequence.
     """
-    # Calculate total possible combinations
-    max_combinations = math.comb(num_port, num_concat)
-    if num_fov > max_combinations:
-        raise IndexError(f"`num_fov` exceeded max {max_combinations} for {num_concat} concat(s).")
+    # # calculate total possible combinations
+    # max_combinations = math.comb(num_port, num_concat)
+    # if num_fov > max_combinations:
+    #     print(f"`num_fov` exceeded max {max_combinations} for {num_concat} concat(s).")
+    #     return []
+    # calculate minimum columns needed
+    columns = num_concat
+    while math.comb(columns, num_concat) < num_fov:
+        columns += 1
+    if columns > num_port:
+        print(f"`num_fov` exceeded max allowed combinations for {num_concat} concat(s).")
+        return ([], columns)
     # generate combinations of positions where 1s should be placed
     # combinations() generates them in lexicographic order
-    one_positions = combinations(range(num_port), num_concat)
+    one_positions = combinations(range(columns), num_concat)
     sequences = []
     for positions in one_positions:
         if len(sequences) >= num_fov:
@@ -188,7 +307,7 @@ def generate_digit_sequences(num_fov, num_concat=3, num_port=20):
         for pos in positions:
             sequence[pos] = 1
         sequences.append(sequence)
-    return sequences
+    return (sequences, columns)
 
 
 def read_xycoordinates(csv_file):
@@ -237,9 +356,11 @@ def global_mask_stitching(
     Function: create global mask from mask folder, return coordinates for cleave areas and submasks
     """
     # get PNG files sorted by name
-    image_files = sorted([f for f in os.listdir(mask_folder) if f.lower().endswith(mask_affix)])
+    image_files = sorted([f for f in os.listdir(mask_folder) if f.endswith(mask_affix)])
+    print("Number of images: ", len(image_files))
     # get multichannel coordinates
     coordinates = read_xycoordinates(multichannel_coordinate)
+    print("Number of coordinate pairs: ", len(coordinates))
     # check if number of multichannel images matches with coordinates
     if len(image_files) != len(coordinates):
         # error: mismatch between number of images and coordinate entries.
