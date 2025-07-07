@@ -16,11 +16,12 @@ from PIL import Image
 
 WINDOW_TXT = "Mercury I - Image Scheme Constructor"
 WINDOW_RES = "807x237"
-PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
-PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
 PARAMS_TAB = ["Global Tissue", "Square Subgroup"]
 PARAMS_CRN = 4
 PARAMS_RES = 366
+
+PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
+PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
 PARAMS_MCI = "image_multichannel"
 PARAMS_MSK = "image_mask"
 PARAMS_MAP = "image_cleave_map"
@@ -29,6 +30,7 @@ PARAMS_CRD = "coord_recorded.csv"
 PARAMS_GLB = "image_mask_global.png"
 PARAMS_SCT = "coord_scan_center.csv"
 PARAMS_BIT = "config_bit_scheme.csv"
+PARAMS_TMP = "image_mask_tmp.png"
 
 
 # ===================================== customtkinter classes =====================================
