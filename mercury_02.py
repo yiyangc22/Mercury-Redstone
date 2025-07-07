@@ -17,6 +17,15 @@ from mercury_01 import pyplot_create_region, open_file_dialog
 
 WINDOW_TXT = "Mercury II - Laser Scheme Constructor"
 WINDOW_RES = "800x190"
+PARAMS_CFG = [
+                {"width": 144, "label": "  Number of Ports", "textvar": 20, "padx": (10,0)},
+                {"width": 144, "label": "  Scan Size (um)", "textvar": 300, "padx": (10,0)},
+                {"width": 144, "label": "  Concatenations", "textvar": 3, "padx": (10,0)},
+                {"width": 144, "label": "  Subdivision Factor", "textvar": 3, "padx": (10,0)},
+                {"width": 144, "label": "  Cell Count Threshold", "textvar": 100, "padx": (10,10)},
+             ]
+PARAMS_TRL = "_MC_F001_Z001.png"
+
 PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
 PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
 PARAMS_MCI = "image_multichannel"
@@ -27,15 +36,7 @@ PARAMS_CRD = "coord_recorded.csv"
 PARAMS_GLB = "image_mask_global.png"
 PARAMS_SCT = "coord_scan_center.csv"
 PARAMS_BIT = "config_bit_scheme.csv"
-PARAMS_CFG = [
-                {"width": 144, "label": "  Number of Ports", "textvar": 20, "padx": (10,0)},
-                {"width": 144, "label": "  Scan Size (um)", "textvar": 300, "padx": (10,0)},
-                {"width": 144, "label": "  Concatenations", "textvar": 3, "padx": (10,0)},
-                {"width": 144, "label": "  Subdivision Factor", "textvar": 3, "padx": (10,0)},
-                {"width": 144, "label": "  Cell Count Threshold", "textvar": 100, "padx": (10,10)},
-             ]
-PARAMS_TRL = "_MC_F001_Z001.png"
-
+PARAMS_TMP = "image_mask_tmp.png"
 
 
 # ===================================== customtkinter classes =====================================
@@ -82,6 +83,7 @@ class App(customtkinter.CTk):
             self.pth_fld = self.frm_ctl.ent_pth.get()
             exp_coord = os.path.join(self.pth_fld, PARAMS_PLN)
             exp_gmask = os.path.join(self.pth_fld, PARAMS_GLB)
+            exp_rcrdz = os.path.join(self.pth_fld, PARAMS_CRD)
             # process parameters, save results
             (successful,
             _cleave_size,
@@ -105,11 +107,14 @@ class App(customtkinter.CTk):
             return
         # save generated cleave center coordinates
         cleave_centers = []
+        record_z_value = read_columns(exp_rcrdz, [3])
         for i, coord_pair in enumerate(cleave_center_coord_um):
             temp = coord_pair
+            nearest_z = record_z_value[find_closest_coordinate(cleave_center_coord_um, coord_pair)]
+            temp.append(nearest_z)
             temp.extend(cleave_center_coord_px[i])
             cleave_centers.append(temp)
-        dataframe = pd.DataFrame(cleave_centers, columns=['x','y','w','n','e','s'])
+        dataframe = pd.DataFrame(cleave_centers, columns=['x','y','z','w','n','e','s'])
         dataframe.to_csv(os.path.join(self.pth_fld, PARAMS_SCT), index=True)
         # generate bit scheme for all subregions
         bit_scheme, max_index = generate_digit_sequences(
@@ -310,16 +315,22 @@ def generate_digit_sequences(num_fov, num_concat=3, num_port=20):
     return (sequences, columns)
 
 
-def read_xycoordinates(csv_file):
+def read_columns(csv_file, columns = None):
     """
-    Function: read row 1 and 2 as x and y coordinates (ignore row 0)
+    Function: read designated columns of the provided csv file
     """
+    # default to read only column 1 and 2
+    if columns is None:
+        columns = [1,2]
     # read .csv, save xy coordinates in list, and print
     csv = pd.read_csv(csv_file).values.tolist()
     coords = []
     for row in csv:
         # if needed, invert x (row[1]) or y (row[2]) axis here
-        coords.append([row[1], row[2]])
+        for i in columns:
+            temp = []
+            temp.append(row[i])
+        coords.append(temp)
     # create regions in matplotlib based on the coordinates
     return coords
 
@@ -359,7 +370,7 @@ def global_mask_stitching(
     image_files = sorted([f for f in os.listdir(mask_folder) if f.endswith(mask_affix)])
     print("Number of images: ", len(image_files))
     # get multichannel coordinates
-    coordinates = read_xycoordinates(multichannel_coordinate)
+    coordinates = read_columns(multichannel_coordinate)
     print("Number of coordinate pairs: ", len(coordinates))
     # check if number of multichannel images matches with coordinates
     if len(image_files) != len(coordinates):
@@ -510,6 +521,34 @@ def global_mask_stitching(
         submask_coordinates_um,
         submask_coordinates_px
     )
+
+
+def find_closest_coordinate(coordinates, point):
+    """
+    Function: ind the index of the coordinate pair that is closest to the given point.
+    
+    Args:
+        coordinates: List of coordinate pairs [[x1, y1], [x2, y2], ...]
+        point: Target point [x, y]
+    
+    Returns:
+        int: Index of the closest coordinate pair
+    """
+    target_x, target_y = point
+    min_distance = float('inf')
+    closest_index = 0
+    # loop through all possible xy pairs
+    for i, coord in enumerate(coordinates):
+        x, y = coord
+        # calculate Euclidean distance
+        distance = ((x - target_x) ** 2 + (y - target_y) ** 2) ** 0.5
+        # keep the index of the closest coordinate pair
+        if distance == 0:
+            return i
+        elif distance < min_distance:
+            min_distance = distance
+            closest_index = i
+    return closest_index
 
 
 # ========================================= main function =========================================
