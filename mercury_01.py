@@ -24,8 +24,11 @@ PARAMS_RES = 366
 PARAMS_MCI = "image_multichannel"
 PARAMS_MSK = "image_mask"
 PARAMS_MAP = "image_cleave_map"
-PARAMS_PLN = "coordinates_planned.csv"
-PARAMS_CRD = "coordinates_recorded.csv"
+PARAMS_PLN = "coord_planned.csv"
+PARAMS_CRD = "coord_recorded.csv"
+PARAMS_GLB = "image_mask_global.png"
+PARAMS_SCT = "coord_scan_center.csv"
+PARAMS_BIT = "config_bit_scheme.csv"
 
 
 # ===================================== customtkinter classes =====================================
@@ -701,7 +704,7 @@ def open_file_dialog(
             title = init_title,
             initialdir = init_dir
         )
-    return file_path
+    return file_path.replace("/", "\\")
 
 
 # ========================================= main function =========================================
