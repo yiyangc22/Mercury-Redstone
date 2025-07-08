@@ -107,10 +107,12 @@ class App(customtkinter.CTk):
             return
         # save generated cleave center coordinates
         cleave_centers = []
-        record_z_value = read_columns(exp_rcrdz, [3])
+        plan_xy_value = read_xycoordinates(exp_coord)
+        record_z_value = read_zcoordinates(exp_rcrdz)
+        print(len(record_z_value))
         for i, coord_pair in enumerate(cleave_center_coord_um):
             temp = coord_pair
-            nearest_z = record_z_value[find_closest_coordinate(cleave_center_coord_um, coord_pair)]
+            nearest_z = record_z_value[find_closest_coordinate(plan_xy_value, coord_pair)]
             temp.append(nearest_z)
             temp.extend(cleave_center_coord_px[i])
             cleave_centers.append(temp)
@@ -122,7 +124,6 @@ class App(customtkinter.CTk):
             num_conct,
             num_ports
         )
-        print(bit_scheme)
         # convert bit scheme into port sequences
         port_config = []
         for sequence in bit_scheme:
@@ -315,22 +316,30 @@ def generate_digit_sequences(num_fov, num_concat=3, num_port=20):
     return (sequences, columns)
 
 
-def read_columns(csv_file, columns = None):
+def read_xycoordinates(csv_file):
     """
-    Function: read designated columns of the provided csv file
+    Function: read row 1 and 2 as x and y coordinates (ignore row 0)
     """
-    # default to read only column 1 and 2
-    if columns is None:
-        columns = [1,2]
     # read .csv, save xy coordinates in list, and print
     csv = pd.read_csv(csv_file).values.tolist()
     coords = []
     for row in csv:
         # if needed, invert x (row[1]) or y (row[2]) axis here
-        for i in columns:
-            temp = []
-            temp.append(row[i])
-        coords.append(temp)
+        coords.append([row[1], row[2]])
+    # create regions in matplotlib based on the coordinates
+    return coords
+
+
+def read_zcoordinates(csv_file):
+    """
+    Function: read row 3 as z coordinates (ignore row 0, 1, 2)
+    """
+    # read .csv, save xy coordinates in list, and print
+    csv = pd.read_csv(csv_file).values.tolist()
+    coords = []
+    for row in csv:
+        # if needed, invert x (row[1]) or y (row[2]) axis here
+        coords.append(row[3])
     # create regions in matplotlib based on the coordinates
     return coords
 
@@ -370,7 +379,7 @@ def global_mask_stitching(
     image_files = sorted([f for f in os.listdir(mask_folder) if f.endswith(mask_affix)])
     print("Number of images: ", len(image_files))
     # get multichannel coordinates
-    coordinates = read_columns(multichannel_coordinate)
+    coordinates = read_xycoordinates(multichannel_coordinate)
     print("Number of coordinate pairs: ", len(coordinates))
     # check if number of multichannel images matches with coordinates
     if len(image_files) != len(coordinates):
@@ -539,7 +548,8 @@ def find_closest_coordinate(coordinates, point):
     closest_index = 0
     # loop through all possible xy pairs
     for i, coord in enumerate(coordinates):
-        x, y = coord
+        x = coord[0]
+        y = coord[1]
         # calculate Euclidean distance
         distance = ((x - target_x) ** 2 + (y - target_y) ** 2) ** 0.5
         # keep the index of the closest coordinate pair
