@@ -22,7 +22,7 @@ PARAMS_CFG = [
                 {"width": 144, "label": "  Scan Size (um)", "textvar": 300, "padx": (10,0)},
                 {"width": 144, "label": "  Concatenations", "textvar": 3, "padx": (10,0)},
                 {"width": 144, "label": "  Subdivision Factor", "textvar": 3, "padx": (10,0)},
-                {"width": 144, "label": "  Cell Count Threshold", "textvar": 100, "padx": (10,10)},
+                {"width": 144, "label": "  Pixel Count Threshold", "textvar": 100, "padx": (10,10)},
              ]
 PARAMS_TRL = "_MC_F001_Z001.png"
 
@@ -101,10 +101,14 @@ class App(customtkinter.CTk):
                 submask_minpixel = num_count
             )
             if not successful:
-                print("Error: global mask stitching failed")
+                print("Error: global mask stitching failed.")
+                return
         except (ValueError, TypeError, RuntimeError) as e:
             print(f"Warning: {e}, check file path and mask/coordinate indexing.")
             return
+        # save a blank cleave mask for future uses
+        blank_mask = Image.new('P', [1024,1024], color = (255,255,255))
+        blank_mask.save(os.path.join(self.pth_fld, PARAMS_TMP), format='PNG')
         # save generated cleave center coordinates
         cleave_centers = []
         plan_xy_value = read_xycoordinates(exp_coord)
@@ -161,9 +165,8 @@ class App(customtkinter.CTk):
                     this_region = global_mask.crop(submask_coordinates_px[k])
                     tmp_map.paste(this_region, submask_coordinates_px[k])
             # save cleave map if the port != -1
-            tmp_map.save(os.path.join(self.pth_fld, PARAMS_MAP,('Round '
-                                                                + str(i)
-                                                                + '.png')))
+            tmp_map.save(os.path.join(self.pth_fld, PARAMS_MAP, ('Round ' + str(i) + '.png')),
+                         format = 'PNG')
         # preview saved submask areas in matplotlib
         plt.gca().set_aspect('equal')
         plt.gcf().set_figheight(10)
@@ -521,7 +524,7 @@ def global_mask_stitching(
                 # this will move the current xy coordinates to the next row
                 current_y -= laser_cleave_size_um
     # save the constructed global laser image, return
-    output_image.save(output_file)
+    output_image.save(output_file, format='PNG')
     return (
         True,   # global mask construction successful
         laser_cleave_size_um,
