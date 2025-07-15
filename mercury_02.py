@@ -117,7 +117,7 @@ class App(customtkinter.CTk):
         for i, coord_pair in enumerate(cleave_center_coord_um):
             temp = coord_pair
             nearest_z = record_z_value[find_closest_coordinate(plan_xy_value, coord_pair)]
-            temp.append(round(nearest_z))
+            temp.append(nearest_z)
             temp.extend(cleave_center_coord_px[i])
             cleave_centers.append(temp)
         dataframe = pd.DataFrame(cleave_centers, columns=['x','y','z','w','n','e','s'])
