@@ -3,18 +3,29 @@ Mercury 03: fluid scheme constructor, project version 1.2 (with python 3.9).
 """
 
 import os
-import tkinter
-import pandas
-import numpy as np
+import tkinter as tk
+from datetime import date
+
+import pandas as pd
 import customtkinter
 from PIL import Image
 
+from mercury_01 import open_file_dialog
+
 WINDOW_TXT = "Mercury III - Fluid Scheme Constructor"
-WINDOW_RES = "900x100"
-PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")               # desktop folder path
-PARAMS_EXP = os.path.join(PARAMS_DTP, "_latest")                            # default folder path
-PARAMS_LOG = os.path.join(PARAMS_EXP, "_cleave_cycle.csv")
-PARAMS_LMG = "Mask Images"
+WINDOW_RES = "800x100"
+
+PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
+PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
+PARAMS_MCI = "image_multichannel"
+PARAMS_MSK = "image_mask"
+PARAMS_MAP = "image_cleave_map"
+PARAMS_PLN = "coord_planned.csv"
+PARAMS_CRD = "coord_recorded.csv"
+PARAMS_GLB = "image_mask_global.png"
+PARAMS_SCT = "coord_scan_center.csv"
+PARAMS_BIT = "config_bit_scheme.csv"
+PARAMS_TMP = "image_mask_tmp.png"
 
 
 # ===================================== customtkinter classes =====================================
@@ -26,7 +37,7 @@ class Moa:
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on enable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self):
         super().__init__()
-        self.rtn = ([],'','',[])
+        self.rtn = ([],'','',[[]])
 
 
 class App(customtkinter.CTk, Moa):
@@ -42,7 +53,7 @@ class App(customtkinter.CTk, Moa):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
         # -------------------------------------- GUI setting --------------------------------------
-        self.frm_ctl = Apd(master=self)
+        self.frm_ctl = Exp(master=self)
         self.frm_ctl.grid(row=0, column=0, padx=10, pady=(10,5), sticky="nesw", columnspan=1)
         self.btn_cmc = customtkinter.CTkButton(master=self, text="Commence", command=self.app_exp)
         self.btn_cmc.grid(row=1, column=0, padx=10, pady=(5,10), sticky="nesw", columnspan=1)
@@ -51,115 +62,102 @@ class App(customtkinter.CTk, Moa):
         """
         Function: commence the export of collected user inputs.
         """
-        # variable set up, read csv file
-        pth = self.frm_ctl.ent_pth.get()
-        fld = os.path.join(get_rtl(pth), PARAMS_LMG)
-        csv = get_csv(pth)
-        rtn = ([],fld,pth,[])
-        # arrange csv data into compatable format
-        current_port = csv[0][4]
-        rtn[0].append(current_port)
-        rtn[3].append(0)
-        for i, entry in enumerate(csv):
-            if current_port != entry[4]:
-                current_port = entry[4]
-                rtn[3].append(i)
-                rtn[0].append(current_port)
-        # return results by saving rtn
-        self.rtn = rtn
+        # get user inputs
+        path_folder = self.frm_ctl.ent_pth.get()
+        path_maskfd = os.path.join(path_folder, PARAMS_MAP)
+        path_tmpmsk = os.path.join(path_folder, PARAMS_TMP)
+        path_bitsch = os.path.join(path_folder, PARAMS_BIT)
+        path_scanct = os.path.join(path_folder, PARAMS_SCT)
+        # arrange parameters into labview clusters (tuples)
+        port_list = []
+        port_length = len(pd.read_csv(
+            path_bitsch, keep_default_na = False).values.tolist()[0][8].split(', '))
+        for i in range(port_length):
+            port_list.append(i+1)
+        center_coordinates = pd.read_csv(
+            path_scanct, keep_default_na = False, usecols=[1,2,3,4,5,6,7]).values.tolist()
+        self.rtn = (port_list, path_maskfd, path_tmpmsk, center_coordinates)
         self.quit()
 
 
-class Apd(customtkinter.CTkFrame):
+class Exp(customtkinter.CTkFrame):
     """
-    Class: ctk frame for adding individual instrument commands.
+    Class: ctk frame for specifying experiment folder.
     """
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on enable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
         # -------------------------------------- GUI setting --------------------------------------
         # create file path entry and label
         self.lbl_pth = customtkinter.CTkLabel(
             master = self,
-            width = 200,
+            width = 50,
             height = 28,
-            text = "Experiment Log File (.csv):"
+            text = "Experiment Folder:"
         )
-        self.lbl_pth.grid(row=0, column=0, padx=(10,0), pady=5, sticky="nsew")
+        self.lbl_pth.grid(row=0, column=0, padx=(10,0), pady=5, columnspan=1)
         self.ent_pth = customtkinter.CTkEntry(
             master = self,
-            width = 650,
+            width = 575,
             height = 28,
-            textvariable = tkinter.StringVar(master=self, value=PARAMS_LOG)
+            textvariable = tk.StringVar(master=self, value=PARAMS_EXP)
         )
-        self.ent_pth.grid(row=0, column=1, padx=(5,10), pady=5, sticky="nsew")
+        self.ent_pth.grid(row=0, column=1, padx=(0,5), pady=5, columnspan=1)
+        self.btn_aof = customtkinter.CTkButton(
+            master = self,
+            width = 28,
+            height = 28,
+            text = "...",
+            command = self.app_aof
+        )
+        self.btn_aof.grid(row=0, column=2, padx=(0,10), pady=5, columnspan=1)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on call ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def app_aof(self):
+        """
+        Function: set ent_pth to filedialog.askdirectory output.
+        """
+        file_path = open_file_dialog(
+            init_title = "Select experiment folder",
+            init_dir = PARAMS_DTP,
+            init_types = False
+        )
+        if file_path != "":
+            self.ent_pth.configure(textvariable=tk.StringVar(master=self, value=file_path))
 
 
 # ===================================== independent functions =====================================
 
-def get_csv(dirc):
+def update_mask(img_folder, num_round, area):
     """
-    Function: return the content of a designated .csv file in a 2d list.
+    Function: update and stretch temp cleave mask based on round/area number
     """
-    rtn = []
-    loc = pandas.read_csv(dirc, keep_default_na=False).values.tolist()
-    for row in enumerate(loc):
-        rtn.append(row[1][1:])
-    return rtn
-
-
-def get_dtl(path):
-    """
-    Function: return the last two elements for a file path.
-    """
-    head, tail1 = os.path.split(path)
-    head, tail2 = os.path.split(head)
-    return '\\'.join([tail2, tail1])
-
-
-def get_rtl(path):
-    """
-    Function: return the path of the folder for input file.
-    """
-    head, _tail = os.path.split(path)
-    return head
-
-
-def decode_cpmask_tolist(
-        original,               # file name with path to the original image
-):
-    """
-    ### Decode a png mask image into LabVIEW compatable 1D list of integers.
-
-    `original` : file name and path to the original images.
-    """
-    pxl = np.array(Image.open(original)).flatten()
-    rtn = []
-    for i in pxl:
-        if i < 0:
-            rtn.append(255)
-        else:
-            rtn.append(0)
-    return rtn
-
-
-def decode_cleave_params(
-        path,
-        starting_index
-):
-    """
-    Function: open, decode, and get cleave parameters from a specific index.
-    """
-    command_list = get_csv(path)
-    command_port = command_list[starting_index][4]
-    rtn = ([],[])
-    for i in range(starting_index, len(command_list)):
-        if command_list[i][4] == command_port:
-            rtn[0].append(command_list[i][3])
-            rtn[1].append([command_list[i][0], command_list[i][1], command_list[i][2]])
-        else:
-            return rtn
-    return rtn
+    # access cleave center coordinates
+    exp_folder = os.path.dirname(img_folder)
+    center_coordinates = pd.read_csv(os.path.join(exp_folder, PARAMS_SCT),
+        keep_default_na = False, usecols=[4,5,6,7]).values.tolist()[area]
+    # access cleave mask area
+    tgt_mask = Image.open(os.path.join(img_folder, f"Round {num_round}.png"))
+    tgt_mask = tgt_mask.crop(center_coordinates)
+    # modify cleave mask
+    # first create a [366, 366] empty mask
+    mod_mask = Image.new('P', [366,366], color = (255,255,255))
+    # then paste the [300, 300] cleave mask to the center
+    bg_width, bg_height = mod_mask.size
+    overlay_width, overlay_height = tgt_mask.size
+    x_center = round((bg_width - overlay_width) / 2)
+    y_center = round((bg_height - overlay_height) / 2)
+    mod_mask.paste(tgt_mask, (x_center, y_center))
+    # stretch the modified mask to [2304, 2304]
+    mod_mask = mod_mask.resize([2304, 2304])
+    # crop out laser area
+    rtn_mask = mod_mask.crop((208, 34, 1906, 2270))
+    # flip vertically, then rotate 90 degrees to the left
+    rtn_mask = rtn_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM).rotate(-90)
+    # save the modified image as the new temp mask
+    rtn_mask = rtn_mask.resize([1024, 1024])
+    rtn_mask.save(os.path.join(exp_folder, PARAMS_TMP), format='PNG')
 
 
 # ========================================= main function =========================================
@@ -178,4 +176,4 @@ def mercury_03():
     try:
         return app.rtn
     except AttributeError:
-        return ([],'','',[])
+        return ([],'','',[[]])

@@ -5,6 +5,9 @@ Mercury 01: image scheme constructor, project version 1.22B (with python 3.9).
 import os
 import math
 import tkinter
+from tkinter import filedialog
+from datetime import date
+
 import customtkinter
 import numpy as np
 import pandas as pd
@@ -13,14 +16,21 @@ from PIL import Image
 
 WINDOW_TXT = "Mercury I - Image Scheme Constructor"
 WINDOW_RES = "807x237"
-PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
 PARAMS_TAB = ["Global Tissue", "Square Subgroup"]
 PARAMS_CRN = 4
 PARAMS_RES = 366
-PARAMS_FLD = "_latest"
-PARAMS_MCI = "Multichannel Images"
-PARAMS_MSK = "Mask Images"
-PARAMS_CRD = "_coordinates.csv"
+
+PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
+PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
+PARAMS_MCI = "image_multichannel"
+PARAMS_MSK = "image_mask"
+PARAMS_MAP = "image_cleave_map"
+PARAMS_PLN = "coord_planned.csv"
+PARAMS_CRD = "coord_recorded.csv"
+PARAMS_GLB = "image_mask_global.png"
+PARAMS_SCT = "coord_scan_center.csv"
+PARAMS_BIT = "config_bit_scheme.csv"
+PARAMS_TMP = "image_mask_tmp.png"
 
 
 # ===================================== customtkinter classes =====================================
@@ -32,7 +42,7 @@ class Moa:
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on enable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self):
         super().__init__()
-        self.rtn = ["Not Changed"]
+        self.rtn = ([], '', 0.0)
 
 
 class App(customtkinter.CTk, Moa):
@@ -40,7 +50,7 @@ class App(customtkinter.CTk, Moa):
     Class: main application window and customtkinter main loop.
     """
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on enable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def __init__(self, sample_z = None):
+    def __init__(self, sample_x = None, sample_y = None, sample_z = None):
         super().__init__()
         # ---------------------------------- application setting ----------------------------------
         self.title(WINDOW_TXT)
@@ -48,13 +58,15 @@ class App(customtkinter.CTk, Moa):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
         # save the sample z value
+        self.sample_x = sample_x
+        self.sample_y = sample_y
         self.sample_z = sample_z
         # -------------------------------------- GUI setting --------------------------------------
         # create tabviews for global tissue imaging and subgroup imaging
         self.tab_ent = customtkinter.CTkTabview(master=self)
         self.tab_ent.add(PARAMS_TAB[0])
         self.tab_ent.add(PARAMS_TAB[1])
-        self.tab_ent.grid(row=0, column=0, padx=10, pady=(0,5), sticky="ew", columnspan=2)
+        self.tab_ent.grid(row=0, column=0, padx=10, pady=(0,5), sticky="ew", columnspan=3)
         # configure the tabview for global tissue imaging
         # min x
         self.inp_minx = Entry(
@@ -102,7 +114,7 @@ class App(customtkinter.CTk, Moa):
             width = 105,
             label = "  Starting Z",
             textvar = self.sample_z,
-            placeholder = "(Optional)"
+            placeholder = "(Required)"
         )
         self.inp_rz0.grid(row=0, column=6, padx=(0,5), pady=0)
         # scan resolution
@@ -119,6 +131,7 @@ class App(customtkinter.CTk, Moa):
             master = self.tab_ent.tab(PARAMS_TAB[1]),
             width = 215,
             label = "  Center X",
+            textvar = self.sample_x,
             placeholder = "(Required)"
         )
         self.inp_ctrx.grid(row=0, column=1, padx=(0,6), pady=0)
@@ -127,6 +140,7 @@ class App(customtkinter.CTk, Moa):
             master = self.tab_ent.tab(PARAMS_TAB[1]),
             width = 215,
             label = "  Center Y",
+            textvar = self.sample_y,
             placeholder = "(Required)"
         )
         self.inp_ctry.grid(row=0, column=2, padx=(0,6), pady=0)
@@ -144,7 +158,7 @@ class App(customtkinter.CTk, Moa):
             width = 105,
             label = "  Starting Z",
             textvar = self.sample_z,
-            placeholder = "(Optional)"
+            placeholder = "(Required)"
         )
         self.inp_rz1.grid(row=0, column=6, padx=(0,5), pady=0)
         # scan resolution
@@ -165,11 +179,19 @@ class App(customtkinter.CTk, Moa):
         self.lbl_pth.grid(row=1, column=0, padx=(10,0), pady=5, columnspan=1)
         self.ent_pth = customtkinter.CTkEntry(
             master = self,
-            width = 600,
+            width = 575,
             height = 28,
-            textvariable = tkinter.StringVar(master=self, value=PARAMS_DTP)
+            textvariable = tkinter.StringVar(master=self, value=PARAMS_EXP)
         )
-        self.ent_pth.grid(row=1, column=1, padx=(0,10), pady=5, columnspan=1)
+        self.ent_pth.grid(row=1, column=1, padx=(0,5), pady=5, columnspan=1)
+        self.btn_aof = customtkinter.CTkButton(
+            master = self,
+            width = 28,
+            height = 28,
+            text = "...",
+            command = self.app_aof
+        )
+        self.btn_aof.grid(row=1, column=2, padx=(0,10), pady=5, columnspan=1)
         # configure preview and commence buttons
         self.btn_prv = customtkinter.CTkButton(
             master = self,
@@ -179,10 +201,22 @@ class App(customtkinter.CTk, Moa):
             border_width = 1,
             hover_color = "gray23"
         )
-        self.btn_prv.grid(row=2, column=0, padx=10, pady=5, sticky="ew", columnspan=2)
+        self.btn_prv.grid(row=2, column=0, padx=10, pady=5, sticky="ew", columnspan=3)
         self.btn_cmc = customtkinter.CTkButton(master=self, text="Commence", command=self.app_exp)
-        self.btn_cmc.grid(row=3, column=0, padx=10, pady=(5,10), sticky="ew", columnspan=2)
+        self.btn_cmc.grid(row=3, column=0, padx=10, pady=(5,10), sticky="ew", columnspan=3)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on call ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def app_aof(self):
+        """
+        Function: set ent_pth to filedialog.askdirectory output.
+        """
+        file_path = open_file_dialog(
+            init_title = "Select experiment folder",
+            init_dir = PARAMS_DTP,
+            init_types = False
+        )
+        if file_path != "":
+            self.ent_pth.configure(textvariable=tkinter.StringVar(master=self, value=file_path))
+    # ---------------------------------------------------------------------------------------------
     def app_prv(self, save: bool = False):
         """
         Function: get a preview of the scan scheme with pyplot.
@@ -204,7 +238,7 @@ class App(customtkinter.CTk, Moa):
                     save,
                     float(self.inp_rs0.get_entry())
                 )
-            elif self.tab_ent.get() == PARAMS_TAB[1]:
+            if self.tab_ent.get() == PARAMS_TAB[1]:
                 return scheme_export_packed(
                     scheme_create_subgrp(
                         float(self.inp_ctrx.get_entry()),
@@ -217,17 +251,26 @@ class App(customtkinter.CTk, Moa):
                     save,
                     float(self.inp_rs1.get_entry())
                 )
-            else:
-                return ([], '', self.sample_z)
-        except ValueError:
-            print("Warning: parameter format error, check parameter inputs.")
+        except (ValueError, TypeError) as e:
+            print(f"Warning: {e}, check parameter input format.")
     # ---------------------------------------------------------------------------------------------
     def app_exp(self):
         """
         Function: commence the export of collected user inputs.
         """
+        # save return values
         self.rtn = self.app_prv(save=True)
-        self.quit()
+        # save planned xy coordinates
+        if self.rtn is not None:
+            planned_coordinates, multichannel_image, _ = self.rtn
+            file_path = os.path.join(os.path.dirname(multichannel_image), PARAMS_PLN)
+            column_names = ["x", "y"]
+            df = pd.DataFrame(planned_coordinates, columns=column_names)
+            df.to_csv(file_path, index=True)
+            # quit customtkinter mainloop
+            self.quit()
+        else:
+            pass
 
 
 class Entry(customtkinter.CTkFrame):
@@ -280,25 +323,40 @@ def scheme_export_packed(
     `s` : preview if false, save & exit if true.
     `d` : user scan size (as recorded in entry).
     """
+    # check if the given path already exists, change the save path if necessary
+    duplicated = False
+    root = p
+    if os.path.isdir(p):
+        count = 1
+        p += f" ({count})"
+        duplicated = True
+        while os.path.isdir(p):
+            count += 1
+            p = root + f" ({count})"
     # for save & exit
     if s:
+        # save relevant files/folders
         try:
             # make directory for experiment folder and multichannel image folder
-            os.makedirs(os.path.join(p, PARAMS_FLD, PARAMS_MCI))
+            os.makedirs(os.path.join(p, PARAMS_MCI))
             # make directory for laser mask folder and laser image folder
-            os.makedirs(os.path.join(p, PARAMS_FLD, PARAMS_MSK))
+            os.makedirs(os.path.join(p, PARAMS_MSK))
+            # make directory for laser cleave maps and cleave maps folder
+            os.makedirs(os.path.join(p, PARAMS_MAP))
             # create file for storing recorded xyz values
             df = pd.DataFrame({'x':[], 'y':[], 'z':[]})
-            df.to_csv(os.path.join(p, PARAMS_FLD, PARAMS_CRD))
+            df.to_csv(os.path.join(p, PARAMS_CRD))
         except FileExistsError:
             print(f"Warning: overwriting file(s) at {p}.")
     # for previewing
     else:
         # create textbox to display FOV parameters
-        txt = f"Number of Images: {len(l)}\n"
-        txt += f"Projected Scan Size: {PARAMS_RES}\n"
-        txt += f"User Scan Size: {d}\n"
-        txt += f"Experiment Save Path: {p}"
+        txt = f"Number of images: {len(l)}\n"
+        txt += f"Projected scan size: {PARAMS_RES}\n"
+        txt += f"User scan size: {d}\n"
+        txt += f"Experiment folder: {p}"
+        if duplicated:
+            txt += "\n**Warning: folder name changed due to name duplication**"
         plt.text(
             x = 1.05,
             y = 1,
@@ -315,7 +373,7 @@ def scheme_export_packed(
         plt.tight_layout()
         plt.show()
     # return xy list and image save path
-    return (l, os.path.join(p, PARAMS_FLD, PARAMS_MCI), z)
+    return (l, os.path.join(p, PARAMS_MCI), z)
 
 
 def scheme_create_global(
@@ -354,8 +412,14 @@ def scheme_create_global(
     current_i = 0
     rtn = []
     # find start coordinates (on the top-left corner) of the tissue
-    current_x = center_x - math.floor(dim_x / 2) * res
-    current_y = center_y + math.floor(dim_y / 2) * res
+    if dim_x % 2 != 0:
+        current_x = center_x - math.floor(dim_x / 2) * res
+    else:
+        current_x = center_x - (math.floor(dim_x / 2) - 0.5) * res
+    if dim_y % 2 != 0:
+        current_y = center_y + math.floor(dim_y / 2) * res
+    else:
+        current_y = center_y + (math.floor(dim_y / 2) - 0.5) * res
     # loop through all imaging positions (in an S-shape order)
     # append xy coordinates, pfs, and store a preview into pyplot
     for row in range(dim_y):
@@ -611,13 +675,45 @@ def csvset_modify_concat(
         "y": [new_value[1]],
         "z": [new_value[2]]
     })
-    df1 = pd.concat([df1, df2], ignore_index=True)
+    # avoid concat empty dataframes (may cause empty rows)
+    if df1.empty:
+        df1 = df2
+    else:
+        df1 = pd.concat([df1, df2], ignore_index=True)
     df1.to_csv(file_path, index=False)
+
+
+def open_file_dialog(
+        init_title = "Select a file",
+        init_dir = "/",
+        init_types = (("All files", "*.*"))
+    ):
+    """
+    Function: open a file dialog using tkinter, return selected path.
+
+    Note: setting `init_types` to False enables askdirectory().
+    """
+    if init_types is not False:
+        # open file dialog and get the selected file path
+        file_path = filedialog.askopenfilename(
+            title = init_title,
+            initialdir = init_dir,
+            filetypes = init_types
+        )
+    else:
+        # open file dialog and get the selected directory path
+        file_path = filedialog.askdirectory(
+            title = init_title,
+            initialdir = init_dir
+        )
+    return file_path.replace("/", "\\")
 
 
 # ========================================= main function =========================================
 
 def mercury_01(
+        sample_x = None,
+        sample_y = None,
         sample_z = None
 ):
     """
@@ -627,10 +723,10 @@ def mercury_01(
     customtkinter.set_appearance_mode("dark")
     customtkinter.set_default_color_theme("blue")
     # enter main loop and return user inputs when ended
-    app = App(sample_z)
+    app = App(sample_x, sample_y, sample_z)
     app.resizable(False, False)
     app.mainloop()
     try:
         return app.rtn
     except AttributeError:
-        return ([],[],[])
+        return ([],'',0.0)
