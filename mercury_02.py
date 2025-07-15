@@ -20,7 +20,7 @@ WINDOW_RES = "800x190"
 PARAMS_CFG = [
                 {"width": 144, "label": "  Number of Ports", "textvar": 20, "padx": (10,0)},
                 {"width": 144, "label": "  Scan Size (um)", "textvar": 300, "padx": (10,0)},
-                {"width": 144, "label": "  Concatenations", "textvar": 3, "padx": (10,0)},
+                {"width": 144, "label": "  Concatenations", "textvar": 4, "padx": (10,0)},
                 {"width": 144, "label": "  Subdivision Factor", "textvar": 3, "padx": (10,0)},
                 {"width": 144, "label": "  Pixel Count Threshold", "textvar": 100, "padx": (10,10)},
              ]
