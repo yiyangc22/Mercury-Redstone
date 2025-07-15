@@ -6,8 +6,9 @@ import os
 import tkinter as tk
 from datetime import date
 
-import pandas
+import pandas as pd
 import customtkinter
+from PIL import Image
 
 from mercury_01 import open_file_dialog
 
@@ -36,7 +37,7 @@ class Moa:
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on enable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self):
         super().__init__()
-        self.rtn = ([],'','')
+        self.rtn = ([],'','',[[]])
 
 
 class App(customtkinter.CTk, Moa):
@@ -61,13 +62,21 @@ class App(customtkinter.CTk, Moa):
         """
         Function: commence the export of collected user inputs.
         """
+        # get user inputs
         path_folder = self.frm_ctl.ent_pth.get()
         path_maskfd = os.path.join(path_folder, PARAMS_MAP)
         path_tmpmsk = os.path.join(path_folder, PARAMS_TMP)
-        center_coordinates = pandas.read_csv(
-            os.path.join(path_folder, PARAMS_SCT),
-            keep_default_na = False).values.tolist()
-        self.rtn = (center_coordinates, path_maskfd, path_tmpmsk)
+        path_bitsch = os.path.join(path_folder, PARAMS_BIT)
+        path_scanct = os.path.join(path_folder, PARAMS_SCT)
+        # arrange parameters into labview clusters (tuples)
+        port_list = []
+        port_length = len(pd.read_csv(
+            path_bitsch, keep_default_na = False).values.tolist()[0][8].split(', '))
+        for i in range(port_length):
+            port_list.append(i+1)
+        center_coordinates = pd.read_csv(
+            path_scanct, keep_default_na = False, usecols=[1,2,3,4,5,6,7]).values.tolist()
+        self.rtn = (port_list, path_maskfd, path_tmpmsk, center_coordinates)
         self.quit()
 
 
@@ -118,6 +127,39 @@ class Exp(customtkinter.CTkFrame):
             self.ent_pth.configure(textvariable=tk.StringVar(master=self, value=file_path))
 
 
+# ===================================== independent functions =====================================
+
+def update_mask(img_folder, num_round, area):
+    """
+    Function: update and stretch temp cleave mask based on round/area number
+    """
+    # access cleave center coordinates
+    exp_folder = os.path.dirname(img_folder)
+    center_coordinates = pd.read_csv(os.path.join(exp_folder, PARAMS_SCT),
+        keep_default_na = False, usecols=[4,5,6,7]).values.tolist()[area]
+    # access cleave mask area
+    tgt_mask = Image.open(os.path.join(img_folder, f"Round {num_round}.png"))
+    tgt_mask = tgt_mask.crop(center_coordinates)
+    # modify cleave mask
+    # first create a [366, 366] empty mask
+    mod_mask = Image.new('P', [366,366], color = (255,255,255))
+    # then paste the [300, 300] cleave mask to the center
+    bg_width, bg_height = mod_mask.size
+    overlay_width, overlay_height = tgt_mask.size
+    x_center = round((bg_width - overlay_width) / 2)
+    y_center = round((bg_height - overlay_height) / 2)
+    mod_mask.paste(tgt_mask, (x_center, y_center))
+    # stretch the modified mask to [2304, 2304]
+    mod_mask = mod_mask.resize([2304, 2304])
+    # crop out laser area
+    rtn_mask = mod_mask.crop((208, 34, 1906, 2270))
+    # flip vertically, then rotate 90 degrees to the left
+    rtn_mask = rtn_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM).rotate(-90)
+    # save the modified image as the new temp mask
+    rtn_mask = rtn_mask.resize([1024, 1024])
+    rtn_mask.save(os.path.join(exp_folder, PARAMS_TMP), format='PNG')
+
+
 # ========================================= main function =========================================
 
 def mercury_03():
@@ -134,4 +176,4 @@ def mercury_03():
     try:
         return app.rtn
     except AttributeError:
-        return ([],'','')
+        return ([],'','',[[]])
