@@ -311,7 +311,7 @@ def generate_digit_sequences(num_fov, num_concat=3, num_port=20):
         if len(sequences) >= num_fov:
             break
         # Create sequence with 0s
-        sequence = [0] * num_port
+        sequence = [0] * columns
         # Set 1s at specified positions
         for pos in positions:
             sequence[pos] = 1
