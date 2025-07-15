@@ -1,0 +1,24 @@
+clear=roiManager("count");
+if (clear>0){
+	deletearray=newArray(clear);
+	roiManager("Select", deletearray);
+
+	roiManager("Delete");
+}
+
+run("Canvas Size...", "width=2304 height=2304 position=Top-Right zero");
+makeRectangle(0, 0, 2304, 2304);
+run("Crop");
+run("Size...", "width=732 height=732 depth=1 average interpolation=Bilinear");
+
+name = getTitle();
+print(name);
+setAutoThreshold("Intermodes");
+
+setThreshold(3098, 65535);
+
+setOption("BlackBackground", false);
+run("Convert to Mask");
+run("Watershed");
+
+run("Create Mask");
