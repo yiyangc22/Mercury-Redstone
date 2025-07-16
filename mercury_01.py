@@ -680,7 +680,7 @@ def csvset_modify_concat(
         df1 = df2
     else:
         df1 = pd.concat([df1, df2], ignore_index=True)
-    df1.to_csv(file_path, index=False)
+    df1.to_csv(file_path, index=True)
 
 
 def open_file_dialog(
