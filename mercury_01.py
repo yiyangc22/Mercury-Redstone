@@ -669,7 +669,7 @@ def csvset_modify_concat(
             file_path = os.path.dirname(file_path)
         file_path = os.path.join(file_path, file_name)
     # write the updated dataframe back to the .csv file
-    df1 = pd.read_csv(file_path)
+    df1 = pd.read_csv(file_path, usecols=[1,2,3])
     df2 = pd.DataFrame({
         "x": [new_value[0]],
         "y": [new_value[1]],
