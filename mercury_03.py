@@ -8,9 +8,10 @@ from datetime import date
 
 import pandas as pd
 import customtkinter
-from PIL import Image
+from PIL import Image, ImageOps
 
 from mercury_01 import open_file_dialog
+from mercury_02 import count_non_white_pixel
 
 WINDOW_TXT = "Mercury III - Fluid Scheme Constructor"
 WINDOW_RES = "800x100"
@@ -132,31 +133,51 @@ class Exp(customtkinter.CTkFrame):
 def update_mask(img_folder, num_round, area):
     """
     Function: update and stretch temp cleave mask based on round/area number
+    return false if the update is unsuccessful
     """
-    # access cleave center coordinates
-    exp_folder = os.path.dirname(img_folder)
-    center_coordinates = pd.read_csv(os.path.join(exp_folder, PARAMS_SCT),
-        keep_default_na = False, usecols=[4,5,6,7]).values.tolist()[area]
-    # access cleave mask area
-    tgt_mask = Image.open(os.path.join(img_folder, f"Round {num_round}.png"))
-    tgt_mask = tgt_mask.crop(center_coordinates)
-    # modify cleave mask
-    # first create a [366, 366] empty mask
-    mod_mask = Image.new('P', [366,366], color = (255,255,255))
-    # then paste the [300, 300] cleave mask to the center
-    bg_width, bg_height = mod_mask.size
-    overlay_width, overlay_height = tgt_mask.size
-    x_center = round((bg_width - overlay_width) / 2)
-    y_center = round((bg_height - overlay_height) / 2)
-    mod_mask.paste(tgt_mask, (x_center, y_center))
-    # stretch the modified mask to [2304, 2304]
-    # flip vertically, then rotate 90 degrees to the left
-    mod_mask = mod_mask.resize([2304, 2304]).transpose(Image.Transpose.FLIP_TOP_BOTTOM).rotate(-90)
-    # crop out laser area
-    mod_mask = mod_mask.crop((34, 208, 2270, 1906))
-    # save the modified image as the new temp mask
-    rtn_mask = mod_mask.resize([1024, 1024]).convert('L')
-    rtn_mask.save(os.path.join(exp_folder, PARAMS_TMP), format='PNG')
+    # check for valid input
+    if num_round < 0 or area < 0:
+        print(f"Warning: invalid round/area combination: round {num_round} area {area}.")
+        print(f"Warning: round {num_round} area {area} not executed.")
+        return False
+    # try constructing the mask
+    try:
+        # access cleave center coordinates
+        exp_folder = os.path.dirname(img_folder)
+        center_coordinates = pd.read_csv(os.path.join(exp_folder, PARAMS_SCT),
+            keep_default_na = False, usecols=[4,5,6,7]).values.tolist()[area]
+        # access cleave mask area
+        tgt_mask = Image.open(os.path.join(img_folder, f"Round {num_round}.png"))
+        tgt_mask = tgt_mask.crop(center_coordinates)
+        # if the designated area is (nearly) blank, drop this area and return
+        px_threshold = 10
+        if count_non_white_pixel(tgt_mask) < px_threshold:
+            print(f"Warning: designated area's pixel count is lower than {px_threshold}.")
+            print(f"Warning: round {num_round} area {area} not executed.")
+            return False
+        # modify cleave mask
+        # first create a [366, 366] empty mask
+        mod_mask = Image.new('P', [366,366], color = (255,255,255))
+        # then paste the [300, 300] cleave mask to the center
+        bg_width, bg_height = mod_mask.size
+        overlay_width, overlay_height = tgt_mask.size
+        x_center = round((bg_width - overlay_width) / 2)
+        y_center = round((bg_height - overlay_height) / 2)
+        mod_mask.paste(tgt_mask, (x_center, y_center))
+        # stretch the modified mask to [2304, 2304]
+        # flip vertically, then rotate 90 degrees to the left
+        mod_mask=mod_mask.resize([2304,2304]).transpose(Image.Transpose.FLIP_TOP_BOTTOM).rotate(-90)
+        # crop out laser area
+        mod_mask = mod_mask.crop((34, 208, 2270, 1906))
+        # save the modified image as the new temp mask
+        rtn_mask = mod_mask.resize([1024, 1024]).convert('L')
+        rtn_mask = ImageOps.invert(rtn_mask)
+        rtn_mask.save(os.path.join(exp_folder, PARAMS_TMP), format='PNG')
+        return True
+    except FileNotFoundError as e:
+        print(f"Warning: {e}")
+        print(f"Warning: round {num_round} area {area} not executed.")
+        return False
 
 
 # ========================================= main function =========================================
