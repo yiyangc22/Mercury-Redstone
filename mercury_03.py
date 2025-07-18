@@ -168,10 +168,12 @@ def update_mask(img_folder, num_round, area):
         mod_mask = mod_mask.resize([2304, 2304])
         # crop out laser area
         mod_mask = mod_mask.crop((208, 34, 1906, 2270))
+        # resize laser area to [1024, 1024]
+        mod_mask = mod_mask.resize([1024, 1024])
         # flip vertically, then rotate 90 degrees to the left
-        mod_mask = mod_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM).rotate(-90)
+        mod_mask = mod_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM).rotate(90)
         # save the modified image as the new temp mask
-        rtn_mask = mod_mask.resize([1024, 1024]).convert('L')
+        rtn_mask = mod_mask.convert('L')
         rtn_mask = ImageOps.invert(rtn_mask)
         rtn_mask.save(os.path.join(exp_folder, PARAMS_TMP), format='PNG')
         return True
