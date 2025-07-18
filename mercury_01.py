@@ -324,13 +324,14 @@ def scheme_export_packed(
     `d` : user scan size (as recorded in entry).
     """
     # check if the given path already exists, change the save path if necessary
+    # if the duplicated folder is empty, duplicated is set to false (even if name duplicates)
     duplicated = False
     root = p
-    if os.path.isdir(p):
+    if os.path.isdir(p) and len(os.listdir(p)) > 0:
         count = 1
         p += f" ({count})"
         duplicated = True
-        while os.path.isdir(p):
+        while os.path.isdir(p) and len(os.listdir(p)) > 0:
             count += 1
             p = root + f" ({count})"
     # for save & exit
