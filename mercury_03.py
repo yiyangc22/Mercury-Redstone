@@ -167,7 +167,7 @@ def update_mask(img_folder, num_round, area):
         # stretch the modified mask to [2304, 2304]
         mod_mask = mod_mask.resize([2304, 2304])
         # crop out laser area
-        mod_mask = mod_mask.crop((208, 34, 1906, 2270))
+        mod_mask = mod_mask.crop((192, 18, 192+1914, 18+2200))
         # resize laser area to [1024, 1024]
         mod_mask = mod_mask.resize([1024, 1024])
         # flip vertically, then rotate 90 degrees to the left
