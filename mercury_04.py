@@ -118,12 +118,17 @@ class App(customtkinter.CTk):
             num_round = int(self.ent_rnd.get())
             file_endswith = '.tif'
             file_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_MAP)
+            list_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_SCT)
+            center = read_xycoordinates(list_location)
+            coords = []
             images = []
             texts = []
             for file in os.listdir(file_location):
                 if file[-len(file_endswith):] == file_endswith:
                     file_prefix_num = int(file[0:4]) - 1000
+                    file_affix_num = int(file[5:9]) - 1000
                     if file_prefix_num == num_round:
+                        coords.append(center[file_affix_num])
                         images.append(os.path.join(file_location, file))
                         texts.append(file_prefix_num)
             if len(images) == 0:
@@ -132,9 +137,6 @@ class App(customtkinter.CTk):
         except (ValueError, TypeError) as e:
             print(f"Warning: {e}")
             return
-        # acquire multichannel coordinates
-        file_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_SCT)
-        coords = read_xycoordinates(file_location)
         # check list lengths, initiate preview
         if len(images) != len(coords):
             print(f"Warning: found {len(images)} images, {len(coords)} coordinate pairs.")
