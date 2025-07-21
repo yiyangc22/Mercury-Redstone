@@ -172,6 +172,8 @@ def update_mask(img_folder, num_round, area):
         mod_mask = mod_mask.resize([1024, 1024])
         # flip vertically, then rotate 90 degrees to the left
         mod_mask = mod_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM).rotate(90)
+        # rotate 180 degrees to compensate for global mask stitching
+        mod_mask = mod_mask.rotate(180)
         # save the modified image as the new temp mask
         rtn_mask = mod_mask.convert('L')
         rtn_mask = ImageOps.invert(rtn_mask)
