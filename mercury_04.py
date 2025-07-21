@@ -87,7 +87,7 @@ class App(customtkinter.CTk):
         if len(images) != len(coords):
             print(f"Warning: found {len(images)} images, {len(coords)} coordinate pairs.")
             return
-        preview_stitching(images, coords, 366, 366, 180)
+        preview_stitching(images, coords, 366, 366, 180, center_index=True)
     # ---------------------------------------------------------------------------------------------
     def app_cmc_msk(self):
         """
@@ -107,7 +107,7 @@ class App(customtkinter.CTk):
         if len(images) != len(coords):
             print(f"Warning: found {len(images)} images, {len(coords)} coordinate pairs.")
             return
-        preview_stitching(images, coords, 366, 366, 180)
+        preview_stitching(images, coords, 366, 366, 180, center_index=True)
     # ---------------------------------------------------------------------------------------------
     def app_cmc_lsr(self):
         """
@@ -122,7 +122,6 @@ class App(customtkinter.CTk):
             center = read_xycoordinates(list_location)
             coords = []
             images = []
-            texts = []
             for file in os.listdir(file_location):
                 if file[-len(file_endswith):] == file_endswith:
                     file_prefix_num = int(file[0:4]) - 1000
@@ -130,7 +129,6 @@ class App(customtkinter.CTk):
                     if file_prefix_num == num_round:
                         coords.append(center[file_affix_num])
                         images.append(os.path.join(file_location, file))
-                        texts.append(file_prefix_num)
             if len(images) == 0:
                 print(f"Warning: found no laser images with matching round number {num_round}.")
                 return
@@ -141,15 +139,7 @@ class App(customtkinter.CTk):
         if len(images) != len(coords):
             print(f"Warning: found {len(images)} images, {len(coords)} coordinate pairs.")
             return
-        preview_stitching(
-            images,
-            coords,
-            366,
-            366,
-            rotation = 90,
-            flip_left_right = True,
-            center_text = texts
-        )
+        preview_stitching(images, coords, 366, 366, 180)
 
 
 class Exp(customtkinter.CTkFrame):
@@ -207,23 +197,13 @@ def preview_stitching(
         width,
         height,
         rotation = 0,
-        center_text = None,
+        center_index = False,
         flip_top_bottom = False,
         flip_left_right = False
     ):
     """
     Function: construct pyplot preview for listed images and coordinates.
     """
-    # determine center text values
-    # case 1: display a string
-    if isinstance(center_text, str):
-        text_mode = 1
-    # case 2: display contents of a list
-    elif isinstance(center_text, list):
-        text_mode = 2
-    # case 0: display none ("")
-    else:
-        text_mode = 0
     # initialize pyplot regions
     for i, coord in enumerate(coords):
         pyplot_create_region(
@@ -231,13 +211,15 @@ def preview_stitching(
             coord[1],
             width,
             height,
-            i = "" if text_mode == 0 else (i if text_mode == 1 else center_text[i]),
+            i = i if center_index else images[i],
             j = images[i],
+            a = 0.75,
             g = 0.5,
             r = rotation,
             d = flip_top_bottom,
             b = flip_left_right
         )
+    # show plot preview window
     plt.gca().set_aspect('equal')
     plt.gcf().set_figheight(10)
     plt.gcf().set_figwidth(10)
