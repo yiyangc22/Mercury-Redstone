@@ -59,7 +59,7 @@ class App(customtkinter.CTk):
         self.btn_cmc.grid(row=1, column=1, padx=(0,10), pady=(5,10), sticky="nesw", columnspan=1)
         self.btn_cmc = customtkinter.CTkButton(
             master = self,
-            text = "Stitch Laser Images",
+            text = "Overlay Laser Images",
             command = self.app_cmc_lsr
         )
         self.btn_cmc.grid(row=1, column=2, padx=(0,10), pady=(5,10), sticky="nesw", columnspan=1)
@@ -73,6 +73,8 @@ class App(customtkinter.CTk):
         """
         Function: preview stitching for multichannel images.
         """
+        # clear previous plots
+        plt.clf()
         # acquire image paths
         file_endswith = '.tif'
         file_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_MCI)
@@ -88,11 +90,18 @@ class App(customtkinter.CTk):
             print(f"Warning: found {len(images)} images, {len(coords)} coordinate pairs.")
             return
         preview_stitching(images, coords, 366, 366, 180, center_index=True)
+        # show plot preview window
+        plt.gca().set_aspect('equal')
+        plt.gcf().set_figheight(10)
+        plt.gcf().set_figwidth(10)
+        plt.show()
     # ---------------------------------------------------------------------------------------------
-    def app_cmc_msk(self):
+    def app_cmc_msk(self, show_preview = True):
         """
         Function: preview stitching for laser masks.
         """
+        # clear previous plots
+        plt.clf()
         # acquire image paths
         file_endswith = '.png'
         file_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_MSK)
@@ -108,11 +117,21 @@ class App(customtkinter.CTk):
             print(f"Warning: found {len(images)} images, {len(coords)} coordinate pairs.")
             return
         preview_stitching(images, coords, 366, 366, 180, center_index=True)
+        # show plot preview window
+        if show_preview:
+            plt.gca().set_aspect('equal')
+            plt.gcf().set_figheight(10)
+            plt.gcf().set_figwidth(10)
+            plt.show()
     # ---------------------------------------------------------------------------------------------
     def app_cmc_lsr(self):
         """
         Function: preview stitching for laser images.
         """
+        # clear previous plots
+        plt.clf()
+        # show mask stitching result as background
+        self.app_cmc_msk(show_preview=False)
         # acquire round number and image paths, return if error is encountered
         try:
             num_round = int(self.ent_rnd.get())
@@ -140,6 +159,11 @@ class App(customtkinter.CTk):
             print(f"Warning: found {len(images)} images, {len(coords)} coordinate pairs.")
             return
         preview_stitching(images, coords, 366, 366, 180)
+        # show plot preview window
+        plt.gca().set_aspect('equal')
+        plt.gcf().set_figheight(10)
+        plt.gcf().set_figwidth(10)
+        plt.show()
 
 
 class Exp(customtkinter.CTkFrame):
@@ -211,19 +235,17 @@ def preview_stitching(
             coord[1],
             width,
             height,
-            i = i if center_index else images[i],
+            i = i if center_index else os.path.basename(images[i]),
             j = images[i],
             a = 0.75,
-            g = 0.5,
+            g = 1,
             r = rotation,
             d = flip_top_bottom,
-            b = flip_left_right
+            b = flip_left_right,
+            f = 'center',
+            v = 'center',
+            t = 45
         )
-    # show plot preview window
-    plt.gca().set_aspect('equal')
-    plt.gcf().set_figheight(10)
-    plt.gcf().set_figwidth(10)
-    plt.show()
 
 
 # ========================================= main function =========================================
