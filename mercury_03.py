@@ -166,11 +166,11 @@ def update_mask(img_folder, num_round, area):
         mod_mask.paste(tgt_mask, (x_center, y_center))
         # stretch the modified mask to [2304, 2304]
         # rotate 180 degrees to compensate for global mask stitching
-        mod_mask = mod_mask.resize([2304, 2304])
+        mod_mask = mod_mask.resize([2304, 2304]).rotate(180)
         # crop out laser area
         mod_mask = mod_mask.crop((192, 18, 192+1914, 18+2200))
         # resize laser area to [1024, 1024]
-        mod_mask = mod_mask.resize([1024, 1024]).rotate(180)
+        mod_mask = mod_mask.resize([1024, 1024])
         # flip vertically, then rotate 90 degrees to the left
         mod_mask = mod_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM).rotate(90)
         # save the modified image as the new temp mask
