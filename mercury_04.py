@@ -8,6 +8,7 @@ from datetime import date
 
 import customtkinter
 import matplotlib.pyplot as plt
+from PIL import Image
 
 from mercury_01 import pyplot_create_region, open_file_dialog
 from mercury_02 import read_xycoordinates
@@ -158,7 +159,7 @@ class App(customtkinter.CTk):
         if len(images) != len(coords):
             print(f"Warning: found {len(images)} images, {len(coords)} coordinate pairs.")
             return
-        preview_stitching(images, coords, 366, 366, 180)
+        preview_stitching(images, coords, 366, 366, 180, export_result=True)
         # show plot preview window
         plt.gca().set_aspect('equal')
         plt.gcf().set_figheight(10)
@@ -222,12 +223,21 @@ def preview_stitching(
         height,
         rotation = 0,
         center_index = False,
+        export_result = False,
         flip_top_bottom = False,
         flip_left_right = False
     ):
     """
     Function: construct pyplot preview for listed images and coordinates.
     """
+    # determine round number
+    round_num = int(os.path.basename(images[0])[0:4]) - 1000
+    img_name = ""
+    # create a new image to save stitched laser images
+    if export_result:
+        mask = Image.open(os.path.join(os.path.dirname(images[0]), f"Round {round_num}.png"))
+        img = Image.new('RGB', mask.size, 'black')
+        img_name = os.path.join(os.path.dirname(images[0]), f"Round {round_num}.tif")
     # initialize pyplot regions
     for i, coord in enumerate(coords):
         pyplot_create_region(
@@ -246,6 +256,13 @@ def preview_stitching(
             v = 'center',
             t = 45
         )
+        if export_result:
+            area_num = int(os.path.basename(images[i])[5:9]) - 1000
+            tmp = Image.open(images[i]).resize([732, 732])
+            tmp = tmp.crop((732-600, 732-600, 600, 600)).rotate(180)
+            img.paste(tmp, (coord[area_num])[3:])
+    # if needed, save stitched image as a new file
+    img.save(img_name)
 
 
 # ========================================= main function =========================================
