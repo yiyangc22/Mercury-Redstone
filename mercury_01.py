@@ -24,6 +24,7 @@ PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
 PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
 PARAMS_MCI = "image_multichannel"
 PARAMS_MSK = "image_mask"
+PARAMS_LSR = "image_laser"
 PARAMS_MAP = "image_cleave_map"
 PARAMS_PLN = "coord_planned.csv"
 PARAMS_CRD = "coord_recorded.csv"
@@ -271,6 +272,12 @@ class App(customtkinter.CTk, Moa):
             self.quit()
         else:
             pass
+    # ---------------------------------------------------------------------------------------------
+    def on_closing(self):
+        """
+        Function: enforce quit manually before closing.
+        """
+        self.quit()
 
 
 class Entry(customtkinter.CTkFrame):
@@ -342,6 +349,7 @@ def scheme_export_packed(
             os.makedirs(os.path.join(p, PARAMS_MCI))
             # make directory for laser mask folder and laser image folder
             os.makedirs(os.path.join(p, PARAMS_MSK))
+            os.makedirs(os.path.join(p, PARAMS_LSR))
             # make directory for laser cleave maps and cleave maps folder
             os.makedirs(os.path.join(p, PARAMS_MAP))
             # create file for storing recorded xyz values
@@ -726,6 +734,7 @@ def mercury_01(
     # enter main loop and return user inputs when ended
     app = App(sample_x, sample_y, sample_z)
     app.resizable(False, False)
+    app.protocol("WM_DELETE_WINDOW", app.on_closing)
     app.mainloop()
     try:
         return app.rtn
