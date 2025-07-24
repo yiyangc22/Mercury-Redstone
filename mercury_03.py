@@ -20,6 +20,7 @@ PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
 PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
 PARAMS_MCI = "image_multichannel"
 PARAMS_MSK = "image_mask"
+PARAMS_LSR = "image_laser"
 PARAMS_MAP = "image_cleave_map"
 PARAMS_PLN = "coord_planned.csv"
 PARAMS_CRD = "coord_recorded.csv"
@@ -65,7 +66,8 @@ class App(customtkinter.CTk, Moa):
         """
         # get user inputs
         path_folder = self.frm_ctl.ent_pth.get()
-        path_maskfd = os.path.join(path_folder, PARAMS_MAP)
+        # path_maskfd = os.path.join(path_folder, PARAMS_MAP)
+        path_lsrimg = os.path.join(path_folder, PARAMS_LSR)
         path_tmpmsk = os.path.join(path_folder, PARAMS_TMP)
         path_bitsch = os.path.join(path_folder, PARAMS_BIT)
         path_scanct = os.path.join(path_folder, PARAMS_SCT)
@@ -77,7 +79,13 @@ class App(customtkinter.CTk, Moa):
             port_list.append(i+1)
         center_coordinates = pd.read_csv(
             path_scanct, keep_default_na = False, usecols=[1,2,3,4,5,6,7]).values.tolist()
-        self.rtn = (port_list, path_maskfd, path_tmpmsk, center_coordinates)
+        self.rtn = (port_list, path_lsrimg, path_tmpmsk, center_coordinates)
+        self.quit()
+    # ---------------------------------------------------------------------------------------------
+    def on_closing(self):
+        """
+        Function: enforce quit manually before closing.
+        """
         self.quit()
 
 
@@ -147,7 +155,7 @@ def update_mask(img_folder, num_round, area):
         center_coordinates = pd.read_csv(os.path.join(exp_folder, PARAMS_SCT),
             keep_default_na = False, usecols=[4,5,6,7]).values.tolist()[area]
         # access cleave mask area
-        tgt_mask = Image.open(os.path.join(img_folder, f"Round {num_round}.png"))
+        tgt_mask = Image.open(os.path.join(exp_folder, PARAMS_MAP, f"Round {num_round}.png"))
         tgt_mask = tgt_mask.crop(center_coordinates)
         # if the designated area is (nearly) blank, drop this area and return
         px_threshold = 10
@@ -165,14 +173,13 @@ def update_mask(img_folder, num_round, area):
         y_center = round((bg_height - overlay_height) / 2)
         mod_mask.paste(tgt_mask, (x_center, y_center))
         # stretch the modified mask to [2304, 2304]
-        # rotate 180 degrees to compensate for global mask stitching
-        mod_mask = mod_mask.resize([2304, 2304]).rotate(180)
+        mod_mask = mod_mask.resize([2304, 2304])
         # crop out laser area
         mod_mask = mod_mask.crop((192, 18, 192+1914, 18+2200))
         # resize laser area to [1024, 1024]
         mod_mask = mod_mask.resize([1024, 1024])
         # flip vertically, then rotate 90 degrees to the left
-        mod_mask = mod_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM).rotate(90)
+        mod_mask = mod_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM).rotate(-90)
         # save the modified image as the new temp mask
         rtn_mask = mod_mask.convert('L')
         rtn_mask = ImageOps.invert(rtn_mask)
@@ -196,6 +203,7 @@ def mercury_03():
     # enter main loop and return user inputs when ended
     app = App()
     app.resizable(False, False)
+    app.protocol("WM_DELETE_WINDOW", app.on_closing)
     app.mainloop()
     try:
         return app.rtn
