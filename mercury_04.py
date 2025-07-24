@@ -6,6 +6,7 @@ import os
 import tkinter as tk
 from datetime import date
 
+import pandas as pd
 import customtkinter
 import matplotlib.pyplot as plt
 from PIL import Image
@@ -20,6 +21,7 @@ PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
 PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
 PARAMS_MCI = "image_multichannel"
 PARAMS_MSK = "image_mask"
+PARAMS_LSR = "image_laser"
 PARAMS_MAP = "image_cleave_map"
 PARAMS_PLN = "coord_planned.csv"
 PARAMS_CRD = "coord_recorded.csv"
@@ -74,97 +76,113 @@ class App(customtkinter.CTk):
         """
         Function: preview stitching for multichannel images.
         """
-        # clear previous plots
-        plt.clf()
-        # acquire image paths
-        file_endswith = '.tif'
-        file_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_MCI)
-        images = []
-        for file in os.listdir(file_location):
-            if file[-len(file_endswith):] == file_endswith:
-                images.append(os.path.join(file_location, file))
-        # acquire multichannel coordinates
-        file_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_PLN)    # or PARAMS_CRD
-        coords = read_xycoordinates(file_location)
-        # check list lengths, initiate preview
-        if len(images) != len(coords):
-            print(f"Warning: found {len(images)} images, {len(coords)} coordinate pairs.")
-            return
-        preview_stitching(images, coords, 366, 366, 180, center_index=True)
-        # show plot preview window
-        plt.gca().set_aspect('equal')
-        plt.gcf().set_figheight(10)
-        plt.gcf().set_figwidth(10)
-        plt.show()
+        try:
+            # clear previous plots
+            plt.clf()
+            # acquire image paths
+            file_endswith = '.tif'
+            file_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_MCI)
+            images = []
+            for file in os.listdir(file_location):
+                if file[-len(file_endswith):] == file_endswith:
+                    images.append(os.path.join(file_location, file))
+            # acquire multichannel coordinates
+            file_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_PLN)    # or PARAMS_CRD
+            coords = read_xycoordinates(file_location)
+            # check list lengths, initiate preview
+            if len(images) != len(coords):
+                print(f"Warning: found {len(images)} images, {len(coords)} coordinate pairs.")
+                return
+            preview_stitching(images, coords, 366, 366, 180, center_index=True)
+            # show plot preview window
+            plt.gca().set_aspect('equal')
+            plt.gcf().set_figheight(10)
+            plt.gcf().set_figwidth(10)
+            plt.show()
+        except (AttributeError, IndexError, FileNotFoundError) as e:
+            print(f"Warning: error occured in function `app_cmc_mlt`: {e}.")
     # ---------------------------------------------------------------------------------------------
     def app_cmc_msk(self, show_preview = True):
         """
         Function: preview stitching for laser masks.
         """
-        # clear previous plots
-        plt.clf()
-        # acquire image paths
-        file_endswith = '.png'
-        file_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_MSK)
-        images = []
-        for file in os.listdir(file_location):
-            if file[-len(file_endswith):] == file_endswith:
-                images.append(os.path.join(file_location, file))
-        # acquire multichannel coordinates
-        file_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_PLN)    # or PARAMS_CRD
-        coords = read_xycoordinates(file_location)
-        # check list lengths, initiate preview
-        if len(images) != len(coords):
-            print(f"Warning: found {len(images)} images, {len(coords)} coordinate pairs.")
-            return
-        preview_stitching(images, coords, 366, 366, 180, center_index=True)
-        # show plot preview window
-        if show_preview:
-            plt.gca().set_aspect('equal')
-            plt.gcf().set_figheight(10)
-            plt.gcf().set_figwidth(10)
-            plt.show()
+        try:
+            # clear previous plots
+            plt.clf()
+            # acquire image paths
+            file_endswith = '.png'
+            file_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_MSK)
+            images = []
+            for file in os.listdir(file_location):
+                if file[-len(file_endswith):] == file_endswith:
+                    images.append(os.path.join(file_location, file))
+            # acquire multichannel coordinates
+            file_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_PLN)    # or PARAMS_CRD
+            coords = read_xycoordinates(file_location)
+            # check list lengths, initiate preview
+            if len(images) != len(coords):
+                print(f"Warning: found {len(images)} images, {len(coords)} coordinate pairs.")
+                return
+            preview_stitching(images, coords, 366, 366, 180, center_index=True)
+            # show plot preview window
+            if show_preview:
+                plt.gca().set_aspect('equal')
+                plt.gcf().set_figheight(10)
+                plt.gcf().set_figwidth(10)
+                plt.show()
+        except (AttributeError, IndexError, FileNotFoundError) as e:
+            print(f"Warning: error occured in function `app_cmc_msk`: {e}.")
     # ---------------------------------------------------------------------------------------------
     def app_cmc_lsr(self):
         """
         Function: preview stitching for laser images.
         """
-        # clear previous plots
-        plt.clf()
-        # show mask stitching result as background
-        self.app_cmc_msk(show_preview=False)
-        # acquire round number and image paths, return if error is encountered
         try:
-            num_round = int(self.ent_rnd.get())
-            file_endswith = '.tif'
-            file_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_MAP)
-            list_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_SCT)
-            center = read_xycoordinates(list_location)
-            coords = []
-            images = []
-            for file in os.listdir(file_location):
-                if file[-len(file_endswith):] == file_endswith:
-                    file_prefix_num = int(file[0:4]) - 1000
-                    file_affix_num = int(file[5:9]) - 1000
-                    if file_prefix_num == num_round:
-                        coords.append(center[file_affix_num])
-                        images.append(os.path.join(file_location, file))
-            if len(images) == 0:
-                print(f"Warning: found no laser images with matching round number {num_round}.")
+            # clear previous plots
+            plt.clf()
+            # show mask stitching result as background
+            self.app_cmc_msk(show_preview=False)
+            # acquire round number and image paths, return if error is encountered
+            try:
+                num_round = int(self.ent_rnd.get())
+                file_endswith = '.tif'
+                file_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_LSR)
+                list_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_SCT)
+                center = pd.read_csv(
+                    list_location, keep_default_na = False, usecols=[1,2,4,5,6,7]).values.tolist()
+                coords = []
+                images = []
+                for file in os.listdir(file_location):
+                    if file[-len(file_endswith):] == file_endswith and file[0:5] != "Round":
+                        file_prefix_num = int(file[0:4]) - 1000
+                        file_affix_num = int(file[5:9]) - 1000
+                        if file_prefix_num == num_round:
+                            coords.append(center[file_affix_num])
+                            images.append(os.path.join(file_location, file))
+                if len(images) == 0:
+                    print(f"Warning: found no laser images with matching round number {num_round}.")
+                    return
+            except (ValueError, TypeError) as e:
+                print(f"Warning: error accessing image paths/coordinates due to user input: {e}.")
                 return
-        except (ValueError, TypeError) as e:
-            print(f"Warning: {e}")
-            return
-        # check list lengths, initiate preview
-        if len(images) != len(coords):
-            print(f"Warning: found {len(images)} images, {len(coords)} coordinate pairs.")
-            return
-        preview_stitching(images, coords, 366, 366, 180, export_result=True)
-        # show plot preview window
-        plt.gca().set_aspect('equal')
-        plt.gcf().set_figheight(10)
-        plt.gcf().set_figwidth(10)
-        plt.show()
+            # check list lengths, initiate preview
+            if len(images) != len(coords):
+                print(f"Warning: found {len(images)} images, {len(coords)} coordinate pairs.")
+                return
+            preview_stitching(images, coords, 366, 366, 180, export_result=True)
+            # show plot preview window
+            plt.gca().set_aspect('equal')
+            plt.gcf().set_figheight(10)
+            plt.gcf().set_figwidth(10)
+            plt.show()
+        except (AttributeError, IndexError, FileNotFoundError) as e:
+            print(f"Warning: error occured in function `app_cmc_lsr`: {e}.")
+    # ---------------------------------------------------------------------------------------------
+    def on_closing(self):
+        """
+        Function: enforce quit manually before closing.
+        """
+        self.quit()
 
 
 class Exp(customtkinter.CTkFrame):
@@ -230,39 +248,46 @@ def preview_stitching(
     """
     Function: construct pyplot preview for listed images and coordinates.
     """
-    # determine round number
-    round_num = int(os.path.basename(images[0])[0:4]) - 1000
-    img_name = ""
-    # create a new image to save stitched laser images
-    if export_result:
-        mask = Image.open(os.path.join(os.path.dirname(images[0]), f"Round {round_num}.png"))
-        img = Image.new('RGB', mask.size, 'black')
-        img_name = os.path.join(os.path.dirname(images[0]), f"Round {round_num}.tif")
-    # initialize pyplot regions
-    for i, coord in enumerate(coords):
-        pyplot_create_region(
-            coord[0],
-            coord[1],
-            width,
-            height,
-            i = i if center_index else os.path.basename(images[i]),
-            j = images[i],
-            a = 0.75,
-            g = 1,
-            r = rotation,
-            d = flip_top_bottom,
-            b = flip_left_right,
-            f = 'center',
-            v = 'center',
-            t = 45
-        )
+    try:
+        # determine round number
+        round_num = int(os.path.basename(images[0])[0:4]) - 1000
+        img_name = ""
+        # create a new image to save stitched laser images
         if export_result:
-            area_num = int(os.path.basename(images[i])[5:9]) - 1000
-            tmp = Image.open(images[i]).resize([732, 732])
-            tmp = tmp.crop((732-600, 732-600, 600, 600)).rotate(180)
-            img.paste(tmp, (coord[area_num])[3:])
-    # if needed, save stitched image as a new file
-    img.save(img_name)
+            map_fld = os.path.join(os.path.dirname(os.path.dirname(images[0])), PARAMS_MAP)
+            mask = Image.open(os.path.join(map_fld, f"Round {round_num}.png"))
+            img = Image.new('I;16', mask.size, 'black')
+            img_name = os.path.join(map_fld, f"Round {round_num}.tif")
+        # initialize pyplot regions
+        for i, coord in enumerate(coords):
+            pyplot_create_region(
+                coord[0],
+                coord[1],
+                width,
+                height,
+                i = i if center_index else os.path.basename(images[i]),
+                j = images[i],
+                a = 0.75,
+                g = 1,
+                r = rotation,
+                d = flip_top_bottom,
+                b = flip_left_right,
+                f = 'center',
+                v = 'center',
+                t = 45
+            )
+            if export_result:
+                # area_num = int(os.path.basename(images[i])[5:9]) - 1000
+                tmp = Image.open(images[i]).resize([732, 732])
+                tmp = tmp.crop((66, 66, 732-66, 732-66)).rotate(180)
+                nesw = []
+                for j in range(2, 6):
+                    nesw.append(int(coords[i][j]))
+                img.paste(tmp.resize([600, 600]), nesw)
+                # if needed, save stitched image as a new file
+                img.save(img_name)
+    except (AttributeError, IndexError, FileNotFoundError) as e:
+        print(f"Warning: error occured during stitching preview: {e}")
 
 
 # ========================================= main function =========================================
@@ -278,6 +303,7 @@ def mercury_04():
     try:
         app = App()
         app.resizable(False, False)
+        app.protocol("WM_DELETE_WINDOW", app.on_closing)
         app.mainloop()
     except AttributeError:
         return None
