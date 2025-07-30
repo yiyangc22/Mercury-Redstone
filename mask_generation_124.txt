@@ -9,7 +9,7 @@ if (clear>0){
 run("Canvas Size...", "width=2304 height=2304 position=Top-Right zero");
 makeRectangle(0, 0, 2304, 2304);
 run("Crop");
-run("Size...", "width=732 height=732 depth=1 average interpolation=Bilinear");
+run("Size...", "width=366 height=366 depth=1 average interpolation=Bilinear");
 
 name = getTitle();
 print(name);
