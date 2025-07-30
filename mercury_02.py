@@ -378,7 +378,7 @@ def global_mask_stitching(
         mask_affix = '.png',
         laser_cleave_size_um = 300,
         multichannel_size_um = 366,
-        pixel_per_micron = 2,
+        pixel_per_micron = 1,
         submask_division = 10,
         submask_minpixel = 100
     ):
