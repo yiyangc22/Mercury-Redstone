@@ -165,7 +165,7 @@ def update_mask(img_folder, num_round, area):
             return False
         # modify cleave mask
         # first create a [366, 366] empty mask
-        mod_mask = Image.new('P', [732,732], color = (255,255,255))
+        mod_mask = Image.new('P', [366,366], color = (255,255,255))
         # then paste the [300, 300] cleave mask to the center
         bg_width, bg_height = mod_mask.size
         overlay_width, overlay_height = tgt_mask.size
@@ -175,7 +175,7 @@ def update_mask(img_folder, num_round, area):
         # stretch the modified mask to [2304, 2304]
         mod_mask = mod_mask.resize([2304, 2304]).rotate(180)
         # crop out laser area
-        mod_mask = mod_mask.crop((192-12, 18+24, 192+1914-12, 18+2200+24))
+        mod_mask = mod_mask.crop((192-12, 18+25, 192+1914-12, 18+2200+25))
         # resize laser area to [1024, 1024]
         mod_mask = mod_mask.resize([1024, 1024])
         # flip vertically, then rotate 90 degrees to the left
