@@ -283,7 +283,7 @@ def preview_stitching(
                 nesw = []
                 for j in range(2, 6):
                     nesw.append(int(coords[i][j]))
-                img.paste(tmp.resize([600, 600]), nesw)
+                img.paste(tmp.resize([300, 300]), nesw)
                 # if needed, save stitched image as a new file
                 img.save(img_name)
     except (AttributeError, IndexError, FileNotFoundError) as e:
