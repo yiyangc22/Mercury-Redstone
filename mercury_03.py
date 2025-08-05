@@ -39,7 +39,7 @@ class Moa:
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on enable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self):
         super().__init__()
-        self.rtn = ([],'','',[[]])
+        self.rtn = ([],'','',[[]],[[]])
 
 
 class App(customtkinter.CTk, Moa):
@@ -79,7 +79,20 @@ class App(customtkinter.CTk, Moa):
             port_list.append(i+1)
         center_coordinates = pd.read_csv(
             path_scanct, keep_default_na = False, usecols=[1,2,3,4,5,6,7]).values.tolist()
-        self.rtn = (port_list, path_lsrimg, path_tmpmsk, center_coordinates)
+        # read cleave maps to create fov coordinate files
+        # so that empty areas are not included in the experiment construction
+        fov = []
+        for i in range(len(port_list)):
+            mask = Image.open(os.path.join(path_folder, PARAMS_MAP, f"Round {i}.png"))
+            idx = []
+            for j, coords in enumerate(center_coordinates):
+                temp = mask.crop(coords[3:7])
+                px_threshold = 10
+                if count_non_white_pixel(temp) > px_threshold:
+                    idx.append(j)
+            fov.append(idx)
+        # return saved data
+        self.rtn = (port_list, path_lsrimg, path_tmpmsk, center_coordinates, fov)
         self.quit()
     # ---------------------------------------------------------------------------------------------
     def on_closing(self):
@@ -157,12 +170,12 @@ def update_mask(img_folder, num_round, area):
         # access cleave mask area
         tgt_mask = Image.open(os.path.join(exp_folder, PARAMS_MAP, f"Round {num_round}.png"))
         tgt_mask = tgt_mask.crop(center_coordinates)
-        # if the designated area is (nearly) blank, drop this area and return
-        px_threshold = 10
-        if count_non_white_pixel(tgt_mask) < px_threshold:
-            print(f"Warning: designated area's pixel count is lower than {px_threshold}.")
-            print(f"Warning: round {num_round} area {area} not executed.")
-            return False
+        # # if the designated area is (nearly) blank, drop this area and return
+        # px_threshold = 10
+        # if count_non_white_pixel(tgt_mask) < px_threshold:
+        #     print(f"Warning: designated area's pixel count is lower than {px_threshold}.")
+        #     print(f"Warning: round {num_round} area {area} not executed.")
+        #     return False
         # modify cleave mask
         # first create a [366, 366] empty mask
         mod_mask = Image.new('P', [366,366], color = (255,255,255))
@@ -175,7 +188,7 @@ def update_mask(img_folder, num_round, area):
         # stretch the modified mask to [2304, 2304]
         mod_mask = mod_mask.resize([2304, 2304]).rotate(180)
         # crop out laser area
-        mod_mask = mod_mask.crop((192-12, 18+25, 192+1914-12, 18+2200+25))
+        mod_mask = mod_mask.crop((192-14, 18+27, 192+1914-14, 18+2200+27))
         # resize laser area to [1024, 1024]
         mod_mask = mod_mask.resize([1024, 1024])
         # flip vertically, then rotate 90 degrees to the left
@@ -208,4 +221,4 @@ def mercury_03():
     try:
         return app.rtn
     except AttributeError:
-        return ([],'','',[[]])
+        return ([],'','',[[]],[[]])
