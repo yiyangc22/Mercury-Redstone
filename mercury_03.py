@@ -151,7 +151,7 @@ class Exp(customtkinter.CTkFrame):
 
 # ===================================== independent functions =====================================
 
-def update_mask(img_folder, num_round, area):
+def update_mask(img_folder, num_round, area, wnes = None):
     """
     Function: update and stretch temp cleave mask based on round/area number
     return false if the update is unsuccessful
@@ -165,8 +165,11 @@ def update_mask(img_folder, num_round, area):
     try:
         # access cleave center coordinates
         exp_folder = os.path.dirname(img_folder)
-        center_coordinates = pd.read_csv(os.path.join(exp_folder, PARAMS_SCT),
-            keep_default_na = False, usecols=[4,5,6,7]).values.tolist()[area]
+        if wnes is None:
+            center_coordinates = pd.read_csv(os.path.join(exp_folder, PARAMS_SCT),
+                keep_default_na = False, usecols=[4,5,6,7]).values.tolist()[area]
+        else:
+            center_coordinates = wnes
         # access cleave mask area
         tgt_mask = Image.open(os.path.join(exp_folder, PARAMS_MAP, f"Round {num_round}.png"))
         tgt_mask = tgt_mask.crop(center_coordinates)
@@ -188,7 +191,7 @@ def update_mask(img_folder, num_round, area):
         # stretch the modified mask to [2304, 2304]
         mod_mask = mod_mask.resize([2304, 2304]).rotate(180)
         # crop out laser area
-        mod_mask = mod_mask.crop((192-14, 18+27, 192+1914-14, 18+2200+27))
+        mod_mask = mod_mask.crop((192-14, 18+28, 192+1914-14, 18+2200+28))
         # resize laser area to [1024, 1024]
         mod_mask = mod_mask.resize([1024, 1024])
         # flip vertically, then rotate 90 degrees to the left
