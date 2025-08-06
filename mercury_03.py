@@ -8,9 +8,10 @@ from datetime import date
 
 import pandas as pd
 import customtkinter
-from PIL import Image
+from PIL import Image, ImageOps
 
 from mercury_01 import open_file_dialog
+from mercury_02 import count_non_white_pixel
 
 WINDOW_TXT = "Mercury III - Fluid Scheme Constructor"
 WINDOW_RES = "800x100"
@@ -19,6 +20,7 @@ PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
 PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
 PARAMS_MCI = "image_multichannel"
 PARAMS_MSK = "image_mask"
+PARAMS_LSR = "image_laser"
 PARAMS_MAP = "image_cleave_map"
 PARAMS_PLN = "coord_planned.csv"
 PARAMS_CRD = "coord_recorded.csv"
@@ -38,6 +40,7 @@ class Moa:
     def __init__(self):
         super().__init__()
         self.rtn = ([],'','',[[]])
+        # self.rtn = ([],'','',[[]],[[]])
 
 
 class App(customtkinter.CTk, Moa):
@@ -64,7 +67,8 @@ class App(customtkinter.CTk, Moa):
         """
         # get user inputs
         path_folder = self.frm_ctl.ent_pth.get()
-        path_maskfd = os.path.join(path_folder, PARAMS_MAP)
+        # path_maskfd = os.path.join(path_folder, PARAMS_MAP)
+        path_lsrimg = os.path.join(path_folder, PARAMS_LSR)
         path_tmpmsk = os.path.join(path_folder, PARAMS_TMP)
         path_bitsch = os.path.join(path_folder, PARAMS_BIT)
         path_scanct = os.path.join(path_folder, PARAMS_SCT)
@@ -76,7 +80,27 @@ class App(customtkinter.CTk, Moa):
             port_list.append(i+1)
         center_coordinates = pd.read_csv(
             path_scanct, keep_default_na = False, usecols=[1,2,3,4,5,6,7]).values.tolist()
-        self.rtn = (port_list, path_maskfd, path_tmpmsk, center_coordinates)
+        # # read cleave maps to create fov coordinate files
+        # # so that empty areas are not included in the experiment construction
+        # fov = []
+        # for i in range(len(port_list)):
+        #     mask = Image.open(os.path.join(path_folder, PARAMS_MAP, f"Round {i}.png"))
+        #     idx = []
+        #     for j, coords in enumerate(center_coordinates):
+        #         temp = mask.crop(coords[3:7])
+        #         px_threshold = 10
+        #         if count_non_white_pixel(temp) > px_threshold:
+        #             idx.append(j)
+        #     fov.append(idx)
+        # return saved data
+        self.rtn = (port_list, path_lsrimg, path_tmpmsk, center_coordinates)
+        # self.rtn = (port_list, path_lsrimg, path_tmpmsk, center_coordinates, fov)
+        self.quit()
+    # ---------------------------------------------------------------------------------------------
+    def on_closing(self):
+        """
+        Function: enforce quit manually before closing.
+        """
         self.quit()
 
 
@@ -132,32 +156,54 @@ class Exp(customtkinter.CTkFrame):
 def update_mask(img_folder, num_round, area):
     """
     Function: update and stretch temp cleave mask based on round/area number
+    return false if the update is unsuccessful
     """
-    # access cleave center coordinates
-    exp_folder = os.path.dirname(img_folder)
-    center_coordinates = pd.read_csv(os.path.join(exp_folder, PARAMS_SCT),
-        keep_default_na = False, usecols=[4,5,6,7]).values.tolist()[area]
-    # access cleave mask area
-    tgt_mask = Image.open(os.path.join(img_folder, f"Round {num_round}.png"))
-    tgt_mask = tgt_mask.crop(center_coordinates)
-    # modify cleave mask
-    # first create a [366, 366] empty mask
-    mod_mask = Image.new('P', [366,366], color = (255,255,255))
-    # then paste the [300, 300] cleave mask to the center
-    bg_width, bg_height = mod_mask.size
-    overlay_width, overlay_height = tgt_mask.size
-    x_center = round((bg_width - overlay_width) / 2)
-    y_center = round((bg_height - overlay_height) / 2)
-    mod_mask.paste(tgt_mask, (x_center, y_center))
-    # stretch the modified mask to [2304, 2304]
-    mod_mask = mod_mask.resize([2304, 2304])
-    # crop out laser area
-    rtn_mask = mod_mask.crop((208, 34, 1906, 2270))
-    # flip vertically, then rotate 90 degrees to the left
-    rtn_mask = rtn_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM).rotate(-90)
-    # save the modified image as the new temp mask
-    rtn_mask = rtn_mask.resize([1024, 1024])
-    rtn_mask.save(os.path.join(exp_folder, PARAMS_TMP), format='PNG')
+    # check for valid input
+    if num_round < 0 or area < 0:
+        print(f"Warning: invalid round/area combination: round {num_round} area {area}.")
+        print(f"Warning: round {num_round} area {area} not executed.")
+        return False
+    # try constructing the mask
+    try:
+        # access cleave center coordinates
+        exp_folder = os.path.dirname(img_folder)
+        center_coordinates = pd.read_csv(os.path.join(exp_folder, PARAMS_SCT),
+            keep_default_na = False, usecols=[4,5,6,7]).values.tolist()[area]
+        # access cleave mask area
+        tgt_mask = Image.open(os.path.join(exp_folder, PARAMS_MAP, f"Round {num_round}.png"))
+        tgt_mask = tgt_mask.crop(center_coordinates)
+        # if the designated area is (nearly) blank, drop this area and return
+        px_threshold = 10
+        if count_non_white_pixel(tgt_mask) < px_threshold:
+            print(f"Warning: designated area's pixel count is lower than {px_threshold}.")
+            print(f"Warning: round {num_round} area {area} not executed.")
+            return False
+        # modify cleave mask
+        # first create a [366, 366] empty mask
+        mod_mask = Image.new('P', [366,366], color = (255,255,255))
+        # then paste the [300, 300] cleave mask to the center
+        bg_width, bg_height = mod_mask.size
+        overlay_width, overlay_height = tgt_mask.size
+        x_center = round((bg_width - overlay_width) / 2)
+        y_center = round((bg_height - overlay_height) / 2)
+        mod_mask.paste(tgt_mask, (x_center, y_center))
+        # stretch the modified mask to [2304, 2304]
+        mod_mask = mod_mask.resize([2304, 2304]).rotate(180)
+        # crop out laser area
+        mod_mask = mod_mask.crop((192-14, 18+27, 192+1914-14, 18+2200+27))
+        # resize laser area to [1024, 1024]
+        mod_mask = mod_mask.resize([1024, 1024])
+        # flip vertically, then rotate 90 degrees to the left
+        mod_mask = mod_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM).rotate(90)
+        # save the modified image as the new temp mask
+        rtn_mask = mod_mask.convert('L')
+        rtn_mask = ImageOps.invert(rtn_mask)
+        rtn_mask.save(os.path.join(exp_folder, PARAMS_TMP), format='PNG')
+        return True
+    except FileNotFoundError as e:
+        print(f"Warning: {e}")
+        print(f"Warning: round {num_round} area {area} not executed.")
+        return False
 
 
 # ========================================= main function =========================================
@@ -172,6 +218,7 @@ def mercury_03():
     # enter main loop and return user inputs when ended
     app = App()
     app.resizable(False, False)
+    app.protocol("WM_DELETE_WINDOW", app.on_closing)
     app.mainloop()
     try:
         return app.rtn
