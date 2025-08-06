@@ -24,6 +24,7 @@ PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
 PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
 PARAMS_MCI = "image_multichannel"
 PARAMS_MSK = "image_mask"
+PARAMS_LSR = "image_laser"
 PARAMS_MAP = "image_cleave_map"
 PARAMS_PLN = "coord_planned.csv"
 PARAMS_CRD = "coord_recorded.csv"
@@ -271,6 +272,12 @@ class App(customtkinter.CTk, Moa):
             self.quit()
         else:
             pass
+    # ---------------------------------------------------------------------------------------------
+    def on_closing(self):
+        """
+        Function: enforce quit manually before closing.
+        """
+        self.quit()
 
 
 class Entry(customtkinter.CTkFrame):
@@ -324,13 +331,14 @@ def scheme_export_packed(
     `d` : user scan size (as recorded in entry).
     """
     # check if the given path already exists, change the save path if necessary
+    # if the duplicated folder is empty, duplicated is set to false (even if name duplicates)
     duplicated = False
     root = p
-    if os.path.isdir(p):
+    if os.path.isdir(p) and len(os.listdir(p)) > 0:
         count = 1
         p += f" ({count})"
         duplicated = True
-        while os.path.isdir(p):
+        while os.path.isdir(p) and len(os.listdir(p)) > 0:
             count += 1
             p = root + f" ({count})"
     # for save & exit
@@ -341,6 +349,7 @@ def scheme_export_packed(
             os.makedirs(os.path.join(p, PARAMS_MCI))
             # make directory for laser mask folder and laser image folder
             os.makedirs(os.path.join(p, PARAMS_MSK))
+            os.makedirs(os.path.join(p, PARAMS_LSR))
             # make directory for laser cleave maps and cleave maps folder
             os.makedirs(os.path.join(p, PARAMS_MAP))
             # create file for storing recorded xyz values
@@ -669,7 +678,7 @@ def csvset_modify_concat(
             file_path = os.path.dirname(file_path)
         file_path = os.path.join(file_path, file_name)
     # write the updated dataframe back to the .csv file
-    df1 = pd.read_csv(file_path)
+    df1 = pd.read_csv(file_path, usecols=[1,2,3])
     df2 = pd.DataFrame({
         "x": [new_value[0]],
         "y": [new_value[1]],
@@ -680,7 +689,7 @@ def csvset_modify_concat(
         df1 = df2
     else:
         df1 = pd.concat([df1, df2], ignore_index=True)
-    df1.to_csv(file_path, index=False)
+    df1.to_csv(file_path, index=True)
 
 
 def open_file_dialog(
@@ -725,6 +734,7 @@ def mercury_01(
     # enter main loop and return user inputs when ended
     app = App(sample_x, sample_y, sample_z)
     app.resizable(False, False)
+    app.protocol("WM_DELETE_WINDOW", app.on_closing)
     app.mainloop()
     try:
         return app.rtn
