@@ -20,7 +20,7 @@ WINDOW_RES = "800x190"
 PARAMS_CFG = [
                 {"width": 144, "label": "  Number of Ports", "textvar": 20, "padx": (10,0)},
                 {"width": 144, "label": "  Scan Size (um)", "textvar": 300, "padx": (10,0)},
-                {"width": 144, "label": "  Concatenations", "textvar": 3, "padx": (10,0)},
+                {"width": 144, "label": "  Concatenations", "textvar": 5, "padx": (10,0)},
                 {"width": 144, "label": "  Subdivision Factor", "textvar": 3, "padx": (10,0)},
                 {"width": 144, "label": "  Pixel Count Threshold", "textvar": 100, "padx": (10,10)},
              ]
@@ -30,6 +30,7 @@ PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
 PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
 PARAMS_MCI = "image_multichannel"
 PARAMS_MSK = "image_mask"
+PARAMS_LSR = "image_laser"
 PARAMS_MAP = "image_cleave_map"
 PARAMS_PLN = "coord_planned.csv"
 PARAMS_CRD = "coord_recorded.csv"
@@ -173,6 +174,12 @@ class App(customtkinter.CTk):
         plt.gcf().set_figwidth(10)
         plt.show()
         # quit customtkinter mainloop
+        self.quit()
+    # ---------------------------------------------------------------------------------------------
+    def on_closing(self):
+        """
+        Function: enforce quit manually before closing.
+        """
         self.quit()
 
 
@@ -371,7 +378,7 @@ def global_mask_stitching(
         mask_affix = '.png',
         laser_cleave_size_um = 300,
         multichannel_size_um = 366,
-        pixel_per_micron = 2,
+        pixel_per_micron = 1,
         submask_division = 10,
         submask_minpixel = 100
     ):
@@ -577,6 +584,7 @@ def mercury_02():
     try:
         app = App()
         app.resizable(False, False)
+        app.protocol("WM_DELETE_WINDOW", app.on_closing)
         app.mainloop()
     except AttributeError:
         return None
