@@ -39,7 +39,7 @@ class Moa:
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on enable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self):
         super().__init__()
-        self.rtn = ([],'','',[[]],[[]])
+        self.rtn = ([],'','',[[]])
 
 
 class App(customtkinter.CTk, Moa):
@@ -92,7 +92,7 @@ class App(customtkinter.CTk, Moa):
                     idx.append(j)
             fov.append(idx)
         # return saved data
-        self.rtn = (port_list, path_lsrimg, path_tmpmsk, center_coordinates, fov)
+        self.rtn = (port_list, path_lsrimg, path_tmpmsk, fov)
         self.quit()
     # ---------------------------------------------------------------------------------------------
     def on_closing(self):
@@ -151,7 +151,7 @@ class Exp(customtkinter.CTkFrame):
 
 # ===================================== independent functions =====================================
 
-def update_mask(img_folder, num_round, area, wnes = None):
+def update_mask(img_folder, num_round, area):
     """
     Function: update and stretch temp cleave mask based on round/area number
     return false if the update is unsuccessful
@@ -160,19 +160,16 @@ def update_mask(img_folder, num_round, area, wnes = None):
     if num_round < 0 or area < 0:
         print(f"Warning: invalid round/area combination: round {num_round} area {area}.")
         print(f"Warning: round {num_round} area {area} not executed.")
-        return False
+        return [[],[],[]]
     # try constructing the mask
     try:
         # access cleave center coordinates
         exp_folder = os.path.dirname(img_folder)
-        if wnes is None:
-            center_coordinates = pd.read_csv(os.path.join(exp_folder, PARAMS_SCT),
-                keep_default_na = False, usecols=[4,5,6,7]).values.tolist()[area]
-        else:
-            center_coordinates = wnes
+        center_coordinates = pd.read_csv(os.path.join(exp_folder, PARAMS_SCT),
+            keep_default_na = False, usecols=[1,2,3,4,5,6,7]).values.tolist()[area]
         # access cleave mask area
         tgt_mask = Image.open(os.path.join(exp_folder, PARAMS_MAP, f"Round {num_round}.png"))
-        tgt_mask = tgt_mask.crop(center_coordinates)
+        tgt_mask = tgt_mask.crop(center_coordinates[3:7])
         # # if the designated area is (nearly) blank, drop this area and return
         # px_threshold = 10
         # if count_non_white_pixel(tgt_mask) < px_threshold:
@@ -200,11 +197,11 @@ def update_mask(img_folder, num_round, area, wnes = None):
         rtn_mask = mod_mask.convert('L')
         rtn_mask = ImageOps.invert(rtn_mask)
         rtn_mask.save(os.path.join(exp_folder, PARAMS_TMP), format='PNG')
-        return True
+        return center_coordinates[0:3]
     except FileNotFoundError as e:
         print(f"Warning: {e}")
         print(f"Warning: round {num_round} area {area} not executed.")
-        return False
+        return [[],[],[]]
 
 
 # ========================================= main function =========================================
@@ -225,3 +222,5 @@ def mercury_03():
         return app.rtn
     except AttributeError:
         return ([],'','',[[]],[[]])
+
+    
