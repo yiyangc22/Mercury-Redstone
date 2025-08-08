@@ -39,7 +39,7 @@ class Moa:
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on enable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self):
         super().__init__()
-        self.rtn = ([],'','',[[]])
+        self.rtn = ([],'','',[])
 
 
 class App(customtkinter.CTk, Moa):
@@ -79,18 +79,22 @@ class App(customtkinter.CTk, Moa):
             port_list.append(i+1)
         center_coordinates = pd.read_csv(
             path_scanct, keep_default_na = False, usecols=[1,2,3,4,5,6,7]).values.tolist()
-        # read cleave maps to create fov coordinate files
-        # so that empty areas are not included in the experiment construction
+        # # read cleave maps to create fov coordinate files
+        # # so that empty areas are not included in the experiment construction
         fov = []
         for i in range(len(port_list)):
             mask = Image.open(os.path.join(path_folder, PARAMS_MAP, f"Round {i}.png"))
-            idx = []
+            cnt = 0
+            df = []
             for j, coords in enumerate(center_coordinates):
                 temp = mask.crop(coords[3:7])
                 px_threshold = 10
                 if count_non_white_pixel(temp) > px_threshold:
-                    idx.append(j)
-            fov.append(idx)
+                    cnt += 1
+                    df.append(center_coordinates[j])
+            fov.append(cnt)
+            dataframe = pd.DataFrame(df, columns=['x','y','z','w','n','e','s'])
+            dataframe.to_csv(os.path.join(path_folder, PARAMS_MAP, f"Round {i}.csv"), index=True)
         # return saved data
         self.rtn = (port_list, path_lsrimg, path_tmpmsk, fov)
         self.quit()
@@ -165,11 +169,11 @@ def update_mask(img_folder, num_round, area):
     try:
         # access cleave center coordinates
         exp_folder = os.path.dirname(img_folder)
-        center_coordinates = pd.read_csv(os.path.join(exp_folder, PARAMS_SCT),
+        center_coord = pd.read_csv(os.path.join(exp_folder, PARAMS_MAP, f"Round {num_round}.csv"),
             keep_default_na = False, usecols=[1,2,3,4,5,6,7]).values.tolist()[area]
         # access cleave mask area
         tgt_mask = Image.open(os.path.join(exp_folder, PARAMS_MAP, f"Round {num_round}.png"))
-        tgt_mask = tgt_mask.crop(center_coordinates[3:7])
+        tgt_mask = tgt_mask.crop(center_coord[3:7])
         # # if the designated area is (nearly) blank, drop this area and return
         # px_threshold = 10
         # if count_non_white_pixel(tgt_mask) < px_threshold:
@@ -197,7 +201,7 @@ def update_mask(img_folder, num_round, area):
         rtn_mask = mod_mask.convert('L')
         rtn_mask = ImageOps.invert(rtn_mask)
         rtn_mask.save(os.path.join(exp_folder, PARAMS_TMP), format='PNG')
-        return center_coordinates[0:3]
+        return center_coord[0:3]
     except FileNotFoundError as e:
         print(f"Warning: {e}")
         print(f"Warning: round {num_round} area {area} not executed.")
@@ -221,6 +225,4 @@ def mercury_03():
     try:
         return app.rtn
     except AttributeError:
-        return ([],'','',[[]],[[]])
-
-    
+        return ([],'','',[])
