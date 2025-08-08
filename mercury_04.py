@@ -147,17 +147,20 @@ class App(customtkinter.CTk):
                 num_round = int(self.ent_rnd.get())
                 file_endswith = '.tif'
                 file_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_LSR)
-                list_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_SCT)
-                center = pd.read_csv(
-                    list_location, keep_default_na = False, usecols=[1,2,4,5,6,7]).values.tolist()
-                coords = []
+                # list_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_SCT)
+                # center = pd.read_csv(
+                #     list_location, keep_default_na = False, usecols=[1,2,4,5,6,7]).values.tolist()
+                # coords = []
+                coords = pd.read_csv(
+                    os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_MAP, f"Round {num_round}.csv")
+                ).values.tolist()
                 images = []
                 for file in os.listdir(file_location):
                     if file[-len(file_endswith):] == file_endswith and file[0:5] != "Round":
                         file_prefix_num = int(file[0:4]) - 1000
-                        file_affix_num = int(file[5:9]) - 1000
+                        # file_affix_num = int(file[5:9]) - 1000
                         if file_prefix_num == num_round:
-                            coords.append(center[file_affix_num])
+                            # coords.append(center[file_affix_num])
                             images.append(os.path.join(file_location, file))
                 if len(images) == 0:
                     print(f"Warning: found no laser images with matching round number {num_round}.")
@@ -278,8 +281,8 @@ def preview_stitching(
             )
             if export_result:
                 # area_num = int(os.path.basename(images[i])[5:9]) - 1000
-                tmp = Image.open(images[i]).resize([732, 732])
-                tmp = tmp.crop((66, 66, 732-66, 732-66)).rotate(180)
+                tmp = Image.open(images[i]).resize([366, 366])
+                tmp = tmp.crop((33, 33, 366-33, 366-33)).rotate(180)
                 nesw = []
                 for j in range(2, 6):
                     nesw.append(int(coords[i][j]))
