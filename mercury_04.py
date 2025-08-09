@@ -152,7 +152,8 @@ class App(customtkinter.CTk):
                 #     list_location, keep_default_na = False, usecols=[1,2,4,5,6,7]).values.tolist()
                 # coords = []
                 coords = pd.read_csv(
-                    os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_MAP, f"Round {num_round}.csv")
+                    os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_MAP, f"Round {num_round}.csv"),
+                    keep_default_na = False, usecols = [1,2,4,5,6,7]
                 ).values.tolist()
                 images = []
                 for file in os.listdir(file_location):
