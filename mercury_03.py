@@ -1,5 +1,5 @@
 """
-Mercury 03: fluid scheme constructor, project version 1.2 (with python 3.9).
+Mercury 03: fluid scheme constructor, project version 1.24 (with python 3.9).
 """
 
 import os
@@ -157,8 +157,8 @@ class Exp(customtkinter.CTkFrame):
 
 def update_mask(img_folder, num_round, area):
     """
-    Function: update and stretch temp cleave mask based on round/area number
-    return false if the update is unsuccessful
+    Function: update and stretch temp cleave mask based on round/area number.
+    return false if the update is unsuccessful.
     """
     # check for valid input
     if num_round < 0 or area < 0:
@@ -206,6 +206,42 @@ def update_mask(img_folder, num_round, area):
         print(f"Warning: {e}")
         print(f"Warning: round {num_round} area {area} not executed.")
         return [[],[],[]]
+
+
+def record_laser_coord(laser_img_folder_path, coords, num_round, execute_status):
+    """
+    Function: create/append (laser imaging) coordinates into a given csv file.
+    if the file name/path does not exist, a file will be created.
+    if the file name/path already exists, coordinates will be appended at the end of the file.
+    """
+    # find csv file name
+    file = os.path.join(laser_img_folder_path, f"Round {num_round} (recorded).csv")
+    # if the file already exists, append new coordinates at the end of the file
+    if os.path.exists(file):
+        # read existing csv data as dataframe 1
+        df1 = pd.read_csv(file, usecols=[1,2,3,4])
+        # create new coordinates as dataframe 2
+        df2 = pd.DataFrame({
+            "x": [coords[0]],
+            "y": [coords[1]],
+            "z": [coords[2]],
+            "exec": execute_status
+        })
+        # avoid concat empty dataframes (may cause empty rows)
+        if df1.empty:
+            df = df2
+        else:
+            df = pd.concat([df1, df2], ignore_index=True)
+        df.to_csv(file, index=True)
+    # if the file does not exist, create the file and store coordinates
+    else:
+        df = pd.DataFrame({
+            "x": [coords[0]],
+            "y": [coords[1]],
+            "z": [coords[2]],
+            "exec": execute_status
+        })
+        df.to_csv(file, index=True)
 
 
 # ========================================= main function =========================================
