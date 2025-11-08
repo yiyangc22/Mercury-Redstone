@@ -552,6 +552,7 @@ def pyplot_create_region(
         d = False,      # flip image on N-S direction if True       bool
         r = 0,          # counter-clockwise rotation of image       int
         t = 0,          # counter-clockwise rotation of texts       int
+        z = None        # enforced image dimension (in pixel)       None / list
 ):
     """
     ### Store a rectangle with width = w and height = h at (x,y), marked with i.
@@ -574,6 +575,7 @@ def pyplot_create_region(
     `d` : flip image on N-S direction if True. Default = `False`.
     `r` : counter-clockwise rotation of image. Default = `0`.
     `t` : counter-clockwise rotation of texts. Default = `0`.
+    `z` : enforced image dimension (in pixel). Default = `None`.
     """
     # declare two lists to store corner coordinates
     corner_x = []
@@ -607,6 +609,12 @@ def pyplot_create_region(
             img = img.transpose(method=Image.Transpose.FLIP_TOP_BOTTOM)
         if r != 0:
             img = img.rotate(r)
+        # adjust image size if necessary (to compress image size)
+        if z is not None:
+            try:
+                img.resize(z)
+            except ValueError:
+                print(f"Warning: image resizing unable to resolve value {z}, image not resized.")
         # store img, stretch its dimension to fit the current FOV
         ax = plt.gca()
         ax.imshow(
