@@ -1,9 +1,10 @@
 """
-Mercury 02: laser scheme constructor, project version 1.2 (with python 3.9).
+Mercury 02: laser scheme constructor, project version 1.24 (with python 3.9).
 """
 
 import os
 import math
+import shutil
 import tkinter as tk
 from itertools import combinations
 from datetime import date
@@ -18,7 +19,7 @@ from mercury_01 import pyplot_create_region, open_file_dialog
 WINDOW_TXT = "Mercury II - Laser Scheme Constructor"
 WINDOW_RES = "800x190"
 PARAMS_CFG = [
-                {"width": 144, "label": "  Number of Ports", "textvar": 20, "padx": (10,0)},
+                {"width": 144, "label": "  Number of Ports", "textvar": 21, "padx": (10,0)},
                 {"width": 144, "label": "  Scan Size (um)", "textvar": 300, "padx": (10,0)},
                 {"width": 144, "label": "  Concatenations", "textvar": 5, "padx": (10,0)},
                 {"width": 144, "label": "  Subdivision Factor", "textvar": 3, "padx": (10,0)},
@@ -124,11 +125,7 @@ class App(customtkinter.CTk):
         dataframe = pd.DataFrame(cleave_centers, columns=['x','y','z','w','n','e','s'])
         dataframe.to_csv(os.path.join(self.pth_fld, PARAMS_SCT), index=True)
         # generate bit scheme for all subregions
-        bit_scheme, max_index = generate_digit_sequences(
-            len(submask_coordinates_um),
-            num_conct,
-            num_ports
-        )
+        bit_scheme, max_index = generate_digit_sequences(len(submask_coordinates_um), num_conct)
         # convert bit scheme into port sequences
         port_config = []
         for sequence in bit_scheme:
@@ -145,29 +142,105 @@ class App(customtkinter.CTk):
             temp.append(port_config[i])
             temp.append(bit_scheme[i])
             fluidic_scheme.append(temp)
-        dataframe = pd.DataFrame(fluidic_scheme, columns=['x','y','w','n','e','s','index','bit'])
-        dataframe.to_csv(os.path.join(self.pth_fld, PARAMS_BIT), index=True)
-        # generate a new cleave map image
-        global_mask = Image.open(exp_gmask)
-        global_mask_w, global_mask_h = global_mask.size
-        tmp_map = Image.new('P',
-                            (global_mask_w, global_mask_h),
-                            color = (255,255,255))
-        # generate cleavage maps, save cleave image
-        for i in range(max_index):
-            # clear previous cleave mask markings
-            ImageDraw.Draw(tmp_map).rectangle(
-                (0, 0, global_mask_w, global_mask_h),
-                fill = (255,255,255)
-            )
-            # append images for matching submasks
-            for k, indexes in enumerate(fluidic_scheme):
-                if indexes[7][i] == 1:
-                    this_region = global_mask.crop(submask_coordinates_px[k])
-                    tmp_map.paste(this_region, submask_coordinates_px[k])
-            # save cleave map if the port != -1
-            tmp_map.save(os.path.join(self.pth_fld, PARAMS_MAP, ('Round ' + str(i) + '.png')),
-                         format = 'PNG')
+        # depending on bit string length, consider spliting the experiment into 2 parts
+        if max_index > num_ports:
+            print(f"Warning: bit string length ({max_index}) exceeds max {num_ports} ports.")
+            print(f"Experiment folder {self.pth_fld} will be separated into 2 parts.")
+            # copy and rename current experiment folder
+            folder1 = self.pth_fld + "_part1"
+            folder2 = self.pth_fld + "_part2"
+            os.rename(self.pth_fld, folder1)
+            shutil.copytree(folder1, folder2)
+            # save bit scheme and cleave maps into both folders separately
+            bit1 = []
+            bit2 = []
+            for row in fluidic_scheme:
+                row1 = row[:7]
+                row2 = row[:7]
+                bit_1st_half = row[7][0:num_ports]
+                bit_2nd_half = row[7][num_ports:]
+                # if the second half also exceeds the length of num ports, raise exception
+                if len(bit_2nd_half) > num_ports:
+                    raise ValueError(f"Error: bit length {len(row[7])} need > 2 cycles (48 hrs)")
+                # check if a row has valid bits in the first half and the second half
+                # if a row has valid bits (1s) in either halves, it'll be appended to that folder
+                row1.append(bit_1st_half)
+                row2.append(bit_2nd_half)
+                if not all(val == 0 for val in bit_1st_half):
+                    bit1.append(row1)
+                if not all(val == 0 for val in bit_2nd_half):
+                    bit2.append(row2)
+            # save stored bit schemes into corresponding folders
+            df1 = pd.DataFrame(bit1, columns=['x','y','w','n','e','s','index','bit'])
+            df1.to_csv(os.path.join(folder1, PARAMS_BIT), index=True)
+            df2 = pd.DataFrame(bit2, columns=['x','y','w','n','e','s','index','bit'])
+            df2.to_csv(os.path.join(folder2, PARAMS_BIT), index=True)
+            # generate new empty cleave map
+            global_mask = Image.open(os.path.join(folder1, PARAMS_GLB))
+            global_mask_w, global_mask_h = global_mask.size
+            tmp_map = Image.new('P',
+                                (global_mask_w, global_mask_h),
+                                color = (255,255,255))
+            # generate cleave maps for folder 1
+            for i in range(len(bit1[0][7])):
+                # clear previous cleave mask markings
+                ImageDraw.Draw(tmp_map).rectangle(
+                    (0, 0, global_mask_w, global_mask_h),
+                    fill = (255,255,255)
+                )
+                # append images for matching submasks
+                for k, indexes in enumerate(bit1):
+                    if indexes[7][i] == 1:
+                        this_region = global_mask.crop(submask_coordinates_px[k])
+                        tmp_map.paste(this_region, submask_coordinates_px[k])
+                # save cleave map if the port != -1
+                tmp_map.save(
+                    os.path.join(folder1, PARAMS_MAP,('Round ' + str(i) + '.png')),
+                    format = 'PNG'
+                )
+            # generate cleave maps for folder 2
+            for i in range(len(bit2[0][7])):
+                # clear previous cleave mask markings
+                ImageDraw.Draw(tmp_map).rectangle(
+                    (0, 0, global_mask_w, global_mask_h),
+                    fill = (255,255,255)
+                )
+                # append images for matching submasks
+                for k, indexes in enumerate(bit2):
+                    if indexes[7][i] == 1:
+                        this_region = global_mask.crop(submask_coordinates_px[k])
+                        tmp_map.paste(this_region, submask_coordinates_px[k])
+                # save cleave map if the port != -1
+                tmp_map.save(
+                    os.path.join(folder2, PARAMS_MAP,('Round ' + str(i) + '.png')),
+                    format = 'PNG'
+                )
+        # if there's only 1 cycle required
+        else:
+            dataframe = pd.DataFrame(
+                fluidic_scheme, columns=['x','y','w','n','e','s','index','bit'])
+            dataframe.to_csv(os.path.join(self.pth_fld, PARAMS_BIT), index=True)
+            # generate a new cleave map image
+            global_mask = Image.open(exp_gmask)
+            global_mask_w, global_mask_h = global_mask.size
+            tmp_map = Image.new('P',
+                                (global_mask_w, global_mask_h),
+                                color = (255,255,255))
+            # generate cleavage maps, save cleave image
+            for i in range(max_index):
+                # clear previous cleave mask markings
+                ImageDraw.Draw(tmp_map).rectangle(
+                    (0, 0, global_mask_w, global_mask_h),
+                    fill = (255,255,255)
+                )
+                # append images for matching submasks
+                for k, indexes in enumerate(fluidic_scheme):
+                    if indexes[7][i] == 1:
+                        this_region = global_mask.crop(submask_coordinates_px[k])
+                        tmp_map.paste(this_region, submask_coordinates_px[k])
+                # save cleave map if the port != -1
+                tmp_map.save(os.path.join(self.pth_fld, PARAMS_MAP, ('Round ' + str(i) + '.png')),
+                            format = 'PNG')
         # preview saved submask areas in matplotlib
         plt.gca().set_aspect('equal')
         plt.gcf().set_figheight(10)
@@ -290,26 +363,17 @@ class Entry(customtkinter.CTkFrame):
 
 # ===================================== independent functions =====================================
 
-def generate_digit_sequences(num_fov, num_concat=3, num_port=20):
+def generate_digit_sequences(num_fov, num_concat):
     """
     ### Function: generate unique bit sequences for a given number of images.
 
     `num_fov` : Number of sequences to return.
     `num_concat` : Number of ones in each sequence.
-    `num_port` : Length of each sequence.
     """
-    # # calculate total possible combinations
-    # max_combinations = math.comb(num_port, num_concat)
-    # if num_fov > max_combinations:
-    #     print(f"`num_fov` exceeded max {max_combinations} for {num_concat} concat(s).")
-    #     return []
     # calculate minimum columns needed
     columns = num_concat
     while math.comb(columns, num_concat) < num_fov:
         columns += 1
-    if columns > num_port:
-        print(f"`num_fov` exceeded max allowed combinations for {num_concat} concat(s).")
-        return ([], columns)
     # generate combinations of positions where 1s should be placed
     # combinations() generates them in lexicographic order
     one_positions = combinations(range(columns), num_concat)
@@ -560,7 +624,7 @@ def find_closest_coordinate(coordinates, point):
     for i, coord in enumerate(coordinates):
         x = coord[0]
         y = coord[1]
-        # calculate Euclidean distance
+        # calculate euclidean distance
         distance = ((x - target_x) ** 2 + (y - target_y) ** 2) ** 0.5
         # keep the index of the closest coordinate pair
         if distance == 0:
