@@ -1,5 +1,5 @@
 """
-Mercury 03: fluid scheme constructor, project version 1.2 (with python 3.9).
+Mercury 03: fluid scheme constructor, project version 1.24 (with python 3.9).
 """
 
 import os
@@ -10,6 +10,7 @@ import pandas as pd
 import customtkinter
 from PIL import Image, ImageOps
 
+from mercury_00 import load_mask_preset
 from mercury_01 import open_file_dialog
 from mercury_02 import count_non_white_pixel
 
@@ -39,8 +40,7 @@ class Moa:
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on enable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self):
         super().__init__()
-        self.rtn = ([],'','',[[]])
-        # self.rtn = ([],'','',[[]],[[]])
+        self.rtn = ([],'','',[])
 
 
 class App(customtkinter.CTk, Moa):
@@ -82,19 +82,22 @@ class App(customtkinter.CTk, Moa):
             path_scanct, keep_default_na = False, usecols=[1,2,3,4,5,6,7]).values.tolist()
         # # read cleave maps to create fov coordinate files
         # # so that empty areas are not included in the experiment construction
-        # fov = []
-        # for i in range(len(port_list)):
-        #     mask = Image.open(os.path.join(path_folder, PARAMS_MAP, f"Round {i}.png"))
-        #     idx = []
-        #     for j, coords in enumerate(center_coordinates):
-        #         temp = mask.crop(coords[3:7])
-        #         px_threshold = 10
-        #         if count_non_white_pixel(temp) > px_threshold:
-        #             idx.append(j)
-        #     fov.append(idx)
+        fov = []
+        for i in range(len(port_list)):
+            mask = Image.open(os.path.join(path_folder, PARAMS_MAP, f"Round {i}.png"))
+            cnt = 0
+            df = []
+            for j, coords in enumerate(center_coordinates):
+                temp = mask.crop(coords[3:7])
+                px_threshold = 10
+                if count_non_white_pixel(temp) > px_threshold:
+                    cnt += 1
+                    df.append(center_coordinates[j])
+            fov.append(cnt)
+            dataframe = pd.DataFrame(df, columns=['x','y','z','w','n','e','s'])
+            dataframe.to_csv(os.path.join(path_folder, PARAMS_MAP, f"Round {i}.csv"), index=True)
         # return saved data
-        self.rtn = (port_list, path_lsrimg, path_tmpmsk, center_coordinates)
-        # self.rtn = (port_list, path_lsrimg, path_tmpmsk, center_coordinates, fov)
+        self.rtn = (port_list, path_lsrimg, path_tmpmsk, fov)
         self.quit()
     # ---------------------------------------------------------------------------------------------
     def on_closing(self):
@@ -155,29 +158,29 @@ class Exp(customtkinter.CTkFrame):
 
 def update_mask(img_folder, num_round, area):
     """
-    Function: update and stretch temp cleave mask based on round/area number
-    return false if the update is unsuccessful
+    Function: update and stretch temp cleave mask based on round/area number.
+    return false if the update is unsuccessful.
     """
     # check for valid input
     if num_round < 0 or area < 0:
         print(f"Warning: invalid round/area combination: round {num_round} area {area}.")
         print(f"Warning: round {num_round} area {area} not executed.")
-        return False
+        return [[],[],[]]
     # try constructing the mask
     try:
         # access cleave center coordinates
         exp_folder = os.path.dirname(img_folder)
-        center_coordinates = pd.read_csv(os.path.join(exp_folder, PARAMS_SCT),
-            keep_default_na = False, usecols=[4,5,6,7]).values.tolist()[area]
+        center_coord = pd.read_csv(os.path.join(exp_folder, PARAMS_MAP, f"Round {num_round}.csv"),
+            keep_default_na = False, usecols=[1,2,3,4,5,6,7]).values.tolist()[area]
         # access cleave mask area
         tgt_mask = Image.open(os.path.join(exp_folder, PARAMS_MAP, f"Round {num_round}.png"))
-        tgt_mask = tgt_mask.crop(center_coordinates)
-        # if the designated area is (nearly) blank, drop this area and return
-        px_threshold = 10
-        if count_non_white_pixel(tgt_mask) < px_threshold:
-            print(f"Warning: designated area's pixel count is lower than {px_threshold}.")
-            print(f"Warning: round {num_round} area {area} not executed.")
-            return False
+        tgt_mask = tgt_mask.crop(center_coord[3:7])
+        # # if the designated area is (nearly) blank, drop this area and return
+        # px_threshold = 10
+        # if count_non_white_pixel(tgt_mask) < px_threshold:
+        #     print(f"Warning: designated area's pixel count is lower than {px_threshold}.")
+        #     print(f"Warning: round {num_round} area {area} not executed.")
+        #     return False
         # modify cleave mask
         # first create a [366, 366] empty mask
         mod_mask = Image.new('P', [366,366], color = (255,255,255))
@@ -187,23 +190,82 @@ def update_mask(img_folder, num_round, area):
         x_center = round((bg_width - overlay_width) / 2)
         y_center = round((bg_height - overlay_height) / 2)
         mod_mask.paste(tgt_mask, (x_center, y_center))
+        ###########################################################################################
+        # # stretch the modified mask to [2304, 2304]
+        # mod_mask = mod_mask.resize([2304, 2304]).rotate(180)
+        # # crop out laser area
+        # mod_mask = mod_mask.crop((208, 32, 208+1906, 32+2272))
+        # # resize laser area to [1024, 1024]
+        # mod_mask = mod_mask.resize([1024, 1024])
+        # # flip vertically, then rotate 90 degrees to the left
+        # mod_mask = mod_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM).rotate(90)
+        ###########################################################################################
+        # create new mask with 2304x2304 px and 100 px margin
+        tmp_mask = Image.new('P', [2304+100,2304+100], color = (255,255,255))
         # stretch the modified mask to [2304, 2304]
-        mod_mask = mod_mask.resize([2304, 2304]).rotate(180)
-        # crop out laser area
-        mod_mask = mod_mask.crop((192-14, 18+27, 192+1914-14, 18+2200+27))
+        mod_mask = mod_mask.resize([2304, 2304])
+        # paste modified mask onto the temporary mask (with 100 px margin)
+        tmp_mask.paste(mod_mask, (100,100))
+        # apply cropping, but from the perspective of bottom-right corner
+        _rota, _vert, _hori, x, y, w, h = load_mask_preset(
+            os.path.join(os.path.dirname(os.path.realpath(__file__)), "default_calibration.yaml"), 1
+        )
+        mod_mask = tmp_mask.crop((
+            2304 + 100 - h - y,
+            2304 + 100 - w - x,
+            2304 + 100 - y,
+            2304 + 100 - x
+        ))
+        # rotate 270 degrees, then flip horizontally
+        mod_mask = mod_mask.rotate(270).transpose(Image.Transpose.FLIP_LEFT_RIGHT)
         # resize laser area to [1024, 1024]
         mod_mask = mod_mask.resize([1024, 1024])
-        # flip vertically, then rotate 90 degrees to the left
-        mod_mask = mod_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM).rotate(90)
+        ###########################################################################################
         # save the modified image as the new temp mask
         rtn_mask = mod_mask.convert('L')
         rtn_mask = ImageOps.invert(rtn_mask)
         rtn_mask.save(os.path.join(exp_folder, PARAMS_TMP), format='PNG')
-        return True
+        return center_coord[0:3]
     except FileNotFoundError as e:
         print(f"Warning: {e}")
         print(f"Warning: round {num_round} area {area} not executed.")
-        return False
+        return [[],[],[]]
+
+
+def record_laser_coord(laser_img_folder_path, coords, num_round, execute_status):
+    """
+    Function: create/append (laser imaging) coordinates into a given csv file.
+    if the file name/path does not exist, a file will be created.
+    if the file name/path already exists, coordinates will be appended at the end of the file.
+    """
+    # find csv file name
+    file = os.path.join(laser_img_folder_path, f"Round {num_round} (recorded).csv")
+    # if the file already exists, append new coordinates at the end of the file
+    if os.path.exists(file):
+        # read existing csv data as dataframe 1
+        df1 = pd.read_csv(file, usecols=[1,2,3,4])
+        # create new coordinates as dataframe 2
+        df2 = pd.DataFrame({
+            "x": [coords[0]],
+            "y": [coords[1]],
+            "z": [coords[2]],
+            "exec": execute_status
+        })
+        # avoid concat empty dataframes (may cause empty rows)
+        if df1.empty:
+            df = df2
+        else:
+            df = pd.concat([df1, df2], ignore_index=True)
+        df.to_csv(file, index=True)
+    # if the file does not exist, create the file and store coordinates
+    else:
+        df = pd.DataFrame({
+            "x": [coords[0]],
+            "y": [coords[1]],
+            "z": [coords[2]],
+            "exec": execute_status
+        })
+        df.to_csv(file, index=True)
 
 
 # ========================================= main function =========================================
@@ -223,4 +285,4 @@ def mercury_03():
     try:
         return app.rtn
     except AttributeError:
-        return ([],'','',[[]])
+        return ([],'','',[])
