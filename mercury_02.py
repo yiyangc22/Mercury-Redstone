@@ -115,7 +115,7 @@ class App(customtkinter.CTk):
         cleave_centers = []
         plan_xy_value = read_xycoordinates(exp_coord)
         record_z_value = read_zcoordinates(exp_rcrdz)
-        print(len(record_z_value))
+        print("Number of z-values recorded: ", len(record_z_value))
         for i, coord_pair in enumerate(cleave_center_coord_um):
             temp = coord_pair
             nearest_z = record_z_value[find_closest_coordinate(plan_xy_value, coord_pair)]
@@ -126,97 +126,144 @@ class App(customtkinter.CTk):
         dataframe.to_csv(os.path.join(self.pth_fld, PARAMS_SCT), index=True)
         # generate bit scheme for all subregions
         bit_scheme, max_index = generate_digit_sequences(len(submask_coordinates_um), num_conct)
-        # convert bit scheme into port sequences
-        port_config = []
-        for sequence in bit_scheme:
-            temp = []
-            for i, bit in enumerate(sequence):
-                if bit == 1:
-                    temp.append(i)
-            port_config.append(temp)
-        # save generated submask laser/port scheme
-        fluidic_scheme = []
-        for i, coord_pair in enumerate(submask_coordinates_um):
-            temp = coord_pair
-            temp.extend(submask_coordinates_px[i][:])
-            temp.append(port_config[i])
-            temp.append(bit_scheme[i])
-            fluidic_scheme.append(temp)
+        max_allowed = count_sequence_length(num_ports, num_conct)
         # depending on bit string length, consider spliting the experiment into 2 parts
+        splitting = False
         if max_index > num_ports:
             print(f"Warning: bit string length ({max_index}) exceeds max {num_ports} ports.")
-            print(f"Experiment folder {self.pth_fld} will be separated into 2 parts.")
-            # copy and rename current experiment folder
-            folder1 = self.pth_fld + "_part1"
-            folder2 = self.pth_fld + "_part2"
-            os.rename(self.pth_fld, folder1)
-            shutil.copytree(folder1, folder2)
-            # save bit scheme and cleave maps into both folders separately
-            bit1 = []
-            bit2 = []
-            for row in fluidic_scheme:
-                row1 = row[:7]
-                row2 = row[:7]
-                bit_1st_half = row[7][0:num_ports]
-                bit_2nd_half = row[7][num_ports:]
-                # if the second half also exceeds the length of num ports, raise exception
-                if len(bit_2nd_half) > num_ports:
-                    raise ValueError(f"Error: bit length {len(row[7])} need > 2 cycles (48 hrs)")
-                # check if a row has valid bits in the first half and the second half
-                # if a row has valid bits (1s) in either halves, it'll be appended to that folder
-                row1.append(bit_1st_half)
-                row2.append(bit_2nd_half)
-                if not all(val == 0 for val in bit_1st_half):
-                    bit1.append(row1)
-                if not all(val == 0 for val in bit_2nd_half):
-                    bit2.append(row2)
-            # save stored bit schemes into corresponding folders
-            df1 = pd.DataFrame(bit1, columns=['x','y','w','n','e','s','index','bit'])
-            df1.to_csv(os.path.join(folder1, PARAMS_BIT), index=True)
-            df2 = pd.DataFrame(bit2, columns=['x','y','w','n','e','s','index','bit'])
-            df2.to_csv(os.path.join(folder2, PARAMS_BIT), index=True)
-            # generate new empty cleave map
-            global_mask = Image.open(os.path.join(folder1, PARAMS_GLB))
-            global_mask_w, global_mask_h = global_mask.size
-            tmp_map = Image.new('P',
-                                (global_mask_w, global_mask_h),
-                                color = (255,255,255))
-            # generate cleave maps for folder 1
-            for i in range(len(bit1[0][7])):
-                # clear previous cleave mask markings
-                ImageDraw.Draw(tmp_map).rectangle(
-                    (0, 0, global_mask_w, global_mask_h),
-                    fill = (255,255,255)
-                )
-                # append images for matching submasks
-                for k, indexes in enumerate(bit1):
-                    if indexes[7][i] == 1:
-                        this_region = global_mask.crop(submask_coordinates_px[k])
-                        tmp_map.paste(this_region, submask_coordinates_px[k])
-                # save cleave map if the port != -1
-                tmp_map.save(
-                    os.path.join(folder1, PARAMS_MAP,('Round ' + str(i) + '.png')),
-                    format = 'PNG'
-                )
-            # generate cleave maps for folder 2
-            for i in range(len(bit2[0][7])):
-                # clear previous cleave mask markings
-                ImageDraw.Draw(tmp_map).rectangle(
-                    (0, 0, global_mask_w, global_mask_h),
-                    fill = (255,255,255)
-                )
-                # append images for matching submasks
-                for k, indexes in enumerate(bit2):
-                    if indexes[7][i] == 1:
-                        this_region = global_mask.crop(submask_coordinates_px[k])
-                        tmp_map.paste(this_region, submask_coordinates_px[k])
-                # save cleave map if the port != -1
-                tmp_map.save(
-                    os.path.join(folder2, PARAMS_MAP,('Round ' + str(i) + '.png')),
-                    format = 'PNG'
+            splitting = True
+            # prompt user to choose the next action
+            idx = pause_for_confirmation(
+                parent=self,
+                title="Action Required",
+                label=f"Warning: bit string length ({max_index}) exceeds max {num_ports} ports.",
+                options=[
+                    "Split experiment into 2 parts",
+                    f"Truncate bit scheme (scan {max_allowed} out of {len(bit_scheme)} submasks)",
+                    "Cancel exporting bit scheme"
+                ]
+            )
+            # if user chose to split the experiment
+            if idx == 0:
+                # convert bit scheme into port sequences
+                port_config = []
+                for sequence in bit_scheme:
+                    temp = []
+                    for i, bit in enumerate(sequence):
+                        if bit == 1:
+                            temp.append(i)
+                    port_config.append(temp)
+                # save generated submask laser/port scheme
+                fluidic_scheme = []
+                for i, coord_pair in enumerate(submask_coordinates_um):
+                    temp = coord_pair
+                    temp.extend(submask_coordinates_px[i][:])
+                    temp.append(port_config[i])
+                    temp.append(bit_scheme[i])
+                    fluidic_scheme.append(temp)
+                # copy and rename current experiment folder
+                folder1 = self.pth_fld + "_part1"
+                folder2 = self.pth_fld + "_part2"
+                os.rename(self.pth_fld, folder1)
+                shutil.copytree(folder1, folder2)
+                # save bit scheme and cleave maps into both folders separately
+                bit1 = []
+                bit2 = []
+                for row in fluidic_scheme:
+                    row1 = row[:7]
+                    row2 = row[:7]
+                    bit_1st_half = row[7][0:num_ports]
+                    bit_2nd_half = row[7][num_ports:]
+                    # if the second half also exceeds the length of num ports, raise exception
+                    if len(bit_2nd_half) > num_ports:
+                        idx = pause_for_confirmation(
+                            parent=self,
+                            title="Action Required",
+                            label=f"Error: bit length {len(row[7])} require > 2 fluidic cycles.",
+                            options=["Try Again", "Exit Program"]
+                        )
+                        if idx == 2:
+                            self.quit()
+                        return
+                    # check if a row has valid bits in the first half and the second half
+                    # if a row has valid bits (1s) in any halves, it'll be appended to that folder
+                    row1.append(bit_1st_half)
+                    row2.append(bit_2nd_half)
+                    if not all(val == 0 for val in bit_1st_half):
+                        bit1.append(row1)
+                    if not all(val == 0 for val in bit_2nd_half):
+                        bit2.append(row2)
+                # save stored bit schemes into corresponding folders
+                df1 = pd.DataFrame(bit1, columns=['x','y','w','n','e','s','index','bit'])
+                df1.to_csv(os.path.join(folder1, PARAMS_BIT), index=True)
+                df2 = pd.DataFrame(bit2, columns=['x','y','w','n','e','s','index','bit'])
+                df2.to_csv(os.path.join(folder2, PARAMS_BIT), index=True)
+                # generate new empty cleave map
+                global_mask = Image.open(os.path.join(folder1, PARAMS_GLB))
+                global_mask_w, global_mask_h = global_mask.size
+                tmp_map = Image.new('P',
+                                    (global_mask_w, global_mask_h),
+                                    color = (255,255,255))
+                # generate cleave maps for folder 1
+                for i in range(len(bit1[0][7])):
+                    # clear previous cleave mask markings
+                    ImageDraw.Draw(tmp_map).rectangle(
+                        (0, 0, global_mask_w, global_mask_h),
+                        fill = (255,255,255)
+                    )
+                    # append images for matching submasks
+                    for k, indexes in enumerate(bit1):
+                        if indexes[7][i] == 1:
+                            this_region = global_mask.crop(submask_coordinates_px[k])
+                            tmp_map.paste(this_region, submask_coordinates_px[k])
+                    # save cleave map if the port != -1
+                    tmp_map.save(
+                        os.path.join(folder1, PARAMS_MAP,('Round ' + str(i) + '.png')),
+                        format = 'PNG'
+                    )
+                # generate cleave maps for folder 2
+                for i in range(len(bit2[0][7])):
+                    # clear previous cleave mask markings
+                    ImageDraw.Draw(tmp_map).rectangle(
+                        (0, 0, global_mask_w, global_mask_h),
+                        fill = (255,255,255)
+                    )
+                    # append images for matching submasks
+                    for k, indexes in enumerate(bit2):
+                        if indexes[7][i] == 1:
+                            this_region = global_mask.crop(submask_coordinates_px[k])
+                            tmp_map.paste(this_region, submask_coordinates_px[k])
+                    # save cleave map if the port != -1
+                    tmp_map.save(
+                        os.path.join(folder2, PARAMS_MAP,('Round ' + str(i) + '.png')),
+                        format = 'PNG'
+                    )
+            # if user chose to truncate the experiment
+            elif idx == 1:
+                splitting = False
+                submask_coordinates_um = submask_coordinates_um[:max_allowed]
+                # generate a new bit scheme that is exactly the max allowed length
+                bit_scheme, max_index = generate_digit_sequences(
+                    len(submask_coordinates_um), num_conct
                 )
         # if there's only 1 cycle required
-        else:
+        if not splitting:
+            # convert bit scheme into port sequences
+            port_config = []
+            for sequence in bit_scheme:
+                temp = []
+                for i, bit in enumerate(sequence):
+                    if bit == 1:
+                        temp.append(i)
+                port_config.append(temp)
+            # save generated submask laser/port scheme
+            fluidic_scheme = []
+            for i, coord_pair in enumerate(submask_coordinates_um):
+                temp = coord_pair
+                temp.extend(submask_coordinates_px[i][:])
+                temp.append(port_config[i])
+                temp.append(bit_scheme[i])
+                fluidic_scheme.append(temp)
             dataframe = pd.DataFrame(
                 fluidic_scheme, columns=['x','y','w','n','e','s','index','bit'])
             dataframe.to_csv(os.path.join(self.pth_fld, PARAMS_BIT), index=True)
@@ -241,6 +288,17 @@ class App(customtkinter.CTk):
                 # save cleave map if the port != -1
                 tmp_map.save(os.path.join(self.pth_fld, PARAMS_MAP, ('Round ' + str(i) + '.png')),
                             format = 'PNG')
+        # preview scan submasks based on if they're being truncated or not
+        for pair in submask_coordinates_um:
+            pyplot_create_region(
+                pair[0],
+                pair[1],
+                round(scan_size / num_subdv),
+                round(scan_size / num_subdv),
+                c = 'r',
+                e = 'r',
+                a = 0.1
+            )
         # preview saved submask areas in matplotlib
         plt.gca().set_aspect('equal')
         plt.gcf().set_figheight(10)
@@ -388,6 +446,24 @@ def generate_digit_sequences(num_fov, num_concat):
             sequence[pos] = 1
         sequences.append(sequence)
     return (sequences, columns)
+
+
+def count_sequence_length(num_port, num_concat):
+    """
+    ### Function: count the length of unique bit sequences for a given number of port.
+
+    `num_port` : Number of sequences to return.
+    `num_concat` : Number of ones in each sequence.
+    """
+    # calculate minimum columns needed
+    columns = num_port
+    # generate combinations of positions where 1s should be placed
+    # combinations() generates them in lexicographic order
+    one_positions = combinations(range(columns), num_concat)
+    count = 0
+    for _ in one_positions:
+        count += 1
+    return count
 
 
 def read_xycoordinates(csv_file):
@@ -571,15 +647,6 @@ def global_mask_stitching(
                     if count_non_white_pixel(submask_section) > submask_minpixel:
                         submask_coordinates_um.append([location_x_um, location_y_um])
                         submask_coordinates_px.append(submask_locus)
-                        pyplot_create_region(
-                            location_x_um,
-                            location_y_um,
-                            submask_dimension_um,
-                            submask_dimension_um,
-                            c = 'r',
-                            e = 'r',
-                            a = 0.1
-                        )
             # update coordinates and index
             current_i += 1
             if col != (dim_x_cleaves - 1):
@@ -633,6 +700,49 @@ def find_closest_coordinate(coordinates, point):
             min_distance = distance
             closest_index = i
     return closest_index
+
+
+def pause_for_confirmation(
+        parent:customtkinter.CTk,
+        title:str = "Placeholder Pause",
+        size:list[int] = None,
+        label:str = "Placeholder Label",
+        options:list[str] = None,
+        txt_width:int = 400
+    ):
+    """
+    Function: pause ctk mainloop, prompt user for options in a toplevel window.
+    """
+    # set default parameters
+    options = ["Continue (Code 0)", "Continue (Code 1)"] if options is None else options
+    # create a toplevel window
+    win = customtkinter.CTkToplevel(master=parent)
+    win.title(title)
+    win.grid_rowconfigure(0, weight=1)
+    win.grid_columnconfigure(0, weight=1)
+    win.resizable(False, False)
+    if size is not None:
+        win.geometry(f"{size[0]}x{size[1]}")
+    # change function dependency to the toplevel window
+    win.grab_set()
+    # create return function
+    rtn = {"exit_code": -1}
+    def exit_pause(code):
+        rtn["exit_code"] = code
+        win.destroy()
+    # create label in toplevel window
+    txt = customtkinter.CTkLabel(master=win, text=label, width=txt_width, wraplength=txt_width)
+    txt.grid(row=0, column=0, padx=10, pady=10, sticky="nesw")
+    # create buttons for each option
+    for i, option in enumerate(options):
+        button = customtkinter.CTkButton(
+            master=win, text=option, command=lambda code=i: exit_pause(code)
+        )
+        button.grid(row=i+1, column=0, padx=10, pady=(0,10), sticky="nesw")
+    # pause master mainloop until toplevel window is destroyed
+    parent.wait_window(win)
+    # return once wait is over
+    return rtn["exit_code"]
 
 
 # ========================================= main function =========================================
