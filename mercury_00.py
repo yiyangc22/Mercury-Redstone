@@ -696,6 +696,7 @@ class CalibrationControl(customtkinter.CTkFrame):
         except FileNotFoundError as e:
             print(f"Warning: cannot open preset: {e}.")
         try:
+            self.path = path
             rotation, vertical, horizontal, x, y, w, h = load_mask_preset(self.path,scaling_factor)
             self.master.image_display.rotation = rotation
             self.master.image_display.vertical = vertical
@@ -705,7 +706,6 @@ class CalibrationControl(customtkinter.CTkFrame):
             self.master.image_display.w = w
             self.master.image_display.h = h
             self.master.image_display.apply_preset()
-            self.path = path
         except (ValueError, TypeError, RuntimeError, FileNotFoundError) as e:
             print(f"Warning: unable to load preset at {path}: {e}")
     # ---------------------------------------------------------------------------------------------
@@ -1263,6 +1263,3 @@ def mercury_00(
         return app_main.rtn
     except AttributeError:
         return ('', '', '', [], LASER_SIZE)
-
-if __name__ == "__main__":
-    print(mask_calibration(LASER_SAVE))
