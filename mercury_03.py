@@ -207,7 +207,7 @@ def update_mask(img_folder, num_round, area):
         # paste modified mask onto the temporary mask (with 100 px margin)
         tmp_mask.paste(mod_mask, (100,100))
         # apply cropping, but from the perspective of bottom-right corner
-        _rota, _vert, _hori, x, y, w, h = load_mask_preset(
+        rota, vert, hori, x, y, w, h = load_mask_preset(
             os.path.join(os.path.dirname(os.path.realpath(__file__)), "default_calibration.yaml"), 1
         )
         mod_mask = tmp_mask.crop((
@@ -216,8 +216,12 @@ def update_mask(img_folder, num_round, area):
             2304 + 100 - y,
             2304 + 100 - x
         ))
-        # rotate 270 degrees, then flip horizontally
-        mod_mask = mod_mask.rotate(270).transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        # rotate and flip based on mask calibration preset
+        mod_mask = mod_mask.rotate(rota)
+        if vert:
+            mod_mask = mod_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+        if hori:
+            mod_mask = mod_mask.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
         # resize laser area to [1024, 1024]
         mod_mask = mod_mask.resize([1024, 1024])
         ###########################################################################################
