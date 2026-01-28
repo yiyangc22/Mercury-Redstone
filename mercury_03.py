@@ -200,8 +200,8 @@ def update_mask(img_folder, num_round, area):
         # # flip vertically, then rotate 90 degrees to the left
         # mod_mask = mod_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM).rotate(90)
         ###########################################################################################
-        # create new mask with 2304x2304 px and 100 px margin
-        tmp_mask = Image.new('P', [2304+100,2304+100], color = (255,255,255))
+        # create new mask with 2304x2304 px and 200 px margin
+        tmp_mask = Image.new('P', [2304+200,2304+200], color = (255,255,255))
         # stretch the modified mask to [2304, 2304]
         mod_mask = mod_mask.resize([2304, 2304])
         # paste modified mask onto the temporary mask (with 100 px margin)
@@ -217,7 +217,7 @@ def update_mask(img_folder, num_round, area):
             2304 + 100 - x
         ))
         # rotate and flip based on mask calibration preset
-        mod_mask = mod_mask.rotate(rota)
+        mod_mask = mod_mask.rotate(rota+180)
         if vert:
             mod_mask = mod_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
         if hori:
