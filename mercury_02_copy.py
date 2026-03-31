@@ -16,6 +16,8 @@ from PIL import Image, ImageDraw
 
 from mercury_01 import pyplot_create_region, open_file_dialog
 
+Image.MAX_IMAGE_PIXELS = 300000000
+
 WINDOW_TXT = "Mercury II - Laser Scheme Constructor"
 WINDOW_RES = "800x190"
 PARAMS_CFG = [
@@ -442,7 +444,7 @@ def global_mask_stitching(
         mask_affix = '.png',
         laser_cleave_size_um = 300,
         multichannel_size_um = 366,
-        pixel_per_micron = 1,
+        pixel_per_micron = 2,
         submask_division = 10,
         submask_minpixel = 100
     ):
@@ -499,7 +501,9 @@ def global_mask_stitching(
         x_px = int(starting_x_px + (xy_pair[0] - min_x_um) * pixel_per_micron)
         y_px = int(starting_y_px + (max_y_um - xy_pair[1]) * pixel_per_micron)
         img_path = os.path.join(mask_folder, image_files[i])
-        img = Image.open(img_path).resize([multichannel_size_um, multichannel_size_um]).convert('P')
+        img = Image.open(img_path).resize(
+            [multichannel_size_um*pixel_per_micron, multichannel_size_um*pixel_per_micron]
+        ).convert('P')
         pyplot_create_region(
             x = xy_pair[0],
             y = xy_pair[1],
