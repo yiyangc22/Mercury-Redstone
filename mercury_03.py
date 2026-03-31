@@ -182,14 +182,15 @@ def update_mask(img_folder, num_round, area):
         #     print(f"Warning: round {num_round} area {area} not executed.")
         #     return False
         # modify cleave mask
-        # first create a [366, 366] empty mask
-        mod_mask = Image.new('P', [366,366], color = (255,255,255))
-        # then paste the [300, 300] cleave mask to the center
-        bg_width, bg_height = mod_mask.size
+        # first create a [366, 366] or [732, 732] empty mask
+        bg_width = 732
+        bg_height = 732
+        mod_mask = Image.new('P', [bg_width, bg_height], color = (255,255,255))
+        # then paste the [300, 300] or [600, 600] cleave mask to the center
         overlay_width, overlay_height = tgt_mask.size
-        x_center = round((bg_width - overlay_width) / 2)
-        y_center = round((bg_height - overlay_height) / 2)
-        mod_mask.paste(tgt_mask, (x_center, y_center))
+        x_init = round((bg_width - overlay_width) / 2)
+        y_init = round((bg_height - overlay_height) / 2)
+        mod_mask.paste(tgt_mask, (x_init, y_init))
         ###########################################################################################
         # # stretch the modified mask to [2304, 2304]
         # mod_mask = mod_mask.resize([2304, 2304]).rotate(180)
