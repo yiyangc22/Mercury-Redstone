@@ -1,0 +1,292 @@
+"""
+Mercury 03: fluid scheme constructor, project version 1.24 (with python 3.9).
+"""
+
+import os
+import tkinter as tk
+from datetime import date
+
+import pandas as pd
+import customtkinter
+from PIL import Image, ImageOps
+
+from mercury_00 import load_mask_preset
+from mercury_01 import open_file_dialog
+from mercury_02 import count_non_white_pixel
+
+WINDOW_TXT = "Mercury III - Fluid Scheme Constructor"
+WINDOW_RES = "800x100"
+
+PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
+PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
+PARAMS_MCI = "image_multichannel"
+PARAMS_MSK = "image_mask"
+PARAMS_LSR = "image_laser"
+PARAMS_MAP = "image_cleave_map"
+PARAMS_PLN = "coord_planned.csv"
+PARAMS_CRD = "coord_recorded.csv"
+PARAMS_GLB = "image_mask_global.png"
+PARAMS_SCT = "coord_scan_center.csv"
+PARAMS_BIT = "config_bit_scheme.csv"
+PARAMS_TMP = "image_mask_tmp.png"
+
+
+# ===================================== customtkinter classes =====================================
+
+class Moa:
+    """
+    Class: mother of all classes, parent and pass inputs from customtkinter.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on enable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def __init__(self):
+        super().__init__()
+        self.rtn = ([],'','',[])
+
+
+class App(customtkinter.CTk, Moa):
+    """
+    Class: main application window and customtkinter main loop.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on enable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def __init__(self):
+        super().__init__()
+        # ---------------------------------- application setting ----------------------------------
+        self.title(WINDOW_TXT)
+        self.geometry(WINDOW_RES)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+        # -------------------------------------- GUI setting --------------------------------------
+        self.frm_ctl = Exp(master=self)
+        self.frm_ctl.grid(row=0, column=0, padx=10, pady=(10,5), sticky="nesw", columnspan=1)
+        self.btn_cmc = customtkinter.CTkButton(master=self, text="Commence", command=self.app_exp)
+        self.btn_cmc.grid(row=1, column=0, padx=10, pady=(5,10), sticky="nesw", columnspan=1)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on call ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def app_exp(self):
+        """
+        Function: commence the export of collected user inputs.
+        """
+        # get user inputs
+        path_folder = self.frm_ctl.ent_pth.get()
+        # path_maskfd = os.path.join(path_folder, PARAMS_MAP)
+        path_lsrimg = os.path.join(path_folder, PARAMS_LSR)
+        path_tmpmsk = os.path.join(path_folder, PARAMS_TMP)
+        path_bitsch = os.path.join(path_folder, PARAMS_BIT)
+        path_scanct = os.path.join(path_folder, PARAMS_SCT)
+        # arrange parameters into labview clusters (tuples)
+        port_list = []
+        port_length = len(pd.read_csv(
+            path_bitsch, keep_default_na = False).values.tolist()[0][8].split(', '))
+        for i in range(port_length):
+            port_list.append(i+1)
+        center_coordinates = pd.read_csv(
+            path_scanct, keep_default_na = False, usecols=[1,2,3,4,5,6,7]).values.tolist()
+        # # read cleave maps to create fov coordinate files
+        # # so that empty areas are not included in the experiment construction
+        fov = []
+        for i in range(len(port_list)):
+            mask = Image.open(os.path.join(path_folder, PARAMS_MAP, f"Round {i}.png"))
+            cnt = 0
+            df = []
+            for j, coords in enumerate(center_coordinates):
+                temp = mask.crop(coords[3:7])
+                px_threshold = 10
+                if count_non_white_pixel(temp) > px_threshold:
+                    cnt += 1
+                    df.append(center_coordinates[j])
+            fov.append(cnt)
+            dataframe = pd.DataFrame(df, columns=['x','y','z','w','n','e','s'])
+            dataframe.to_csv(os.path.join(path_folder, PARAMS_MAP, f"Round {i}.csv"), index=True)
+        # return saved data
+        self.rtn = (port_list, path_lsrimg, path_tmpmsk, fov)
+        self.quit()
+    # ---------------------------------------------------------------------------------------------
+    def on_closing(self):
+        """
+        Function: enforce quit manually before closing.
+        """
+        self.quit()
+
+
+class Exp(customtkinter.CTkFrame):
+    """
+    Class: ctk frame for specifying experiment folder.
+    """
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on enable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def __init__(self, master, **kwargs):
+        super().__init__(master, **kwargs)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(0, weight=1)
+        # -------------------------------------- GUI setting --------------------------------------
+        # create file path entry and label
+        self.lbl_pth = customtkinter.CTkLabel(
+            master = self,
+            width = 50,
+            height = 28,
+            text = "Experiment Folder:"
+        )
+        self.lbl_pth.grid(row=0, column=0, padx=(10,0), pady=5, columnspan=1)
+        self.ent_pth = customtkinter.CTkEntry(
+            master = self,
+            width = 575,
+            height = 28,
+            textvariable = tk.StringVar(master=self, value=PARAMS_EXP)
+        )
+        self.ent_pth.grid(row=0, column=1, padx=(0,5), pady=5, columnspan=1)
+        self.btn_aof = customtkinter.CTkButton(
+            master = self,
+            width = 28,
+            height = 28,
+            text = "...",
+            command = self.app_aof
+        )
+        self.btn_aof.grid(row=0, column=2, padx=(0,10), pady=5, columnspan=1)
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on call ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    def app_aof(self):
+        """
+        Function: set ent_pth to filedialog.askdirectory output.
+        """
+        file_path = open_file_dialog(
+            init_title = "Select experiment folder",
+            init_dir = PARAMS_DTP,
+            init_types = False
+        )
+        if file_path != "":
+            self.ent_pth.configure(textvariable=tk.StringVar(master=self, value=file_path))
+
+
+# ===================================== independent functions =====================================
+
+def update_mask(img_folder, num_round, area):
+    """
+    Function: update and stretch temp cleave mask based on round/area number.
+    return false if the update is unsuccessful.
+    """
+    # check for valid input
+    if num_round < 0 or area < 0:
+        print(f"Warning: invalid round/area combination: round {num_round} area {area}.")
+        print(f"Warning: round {num_round} area {area} not executed.")
+        return [[],[],[]]
+    # try constructing the mask
+    try:
+        # access cleave center coordinates
+        exp_folder = os.path.dirname(img_folder)
+        center_coord = pd.read_csv(os.path.join(exp_folder, PARAMS_MAP, f"Round {num_round}.csv"),
+            keep_default_na = False, usecols=[1,2,3,4,5,6,7]).values.tolist()[area]
+        # access cleave mask area
+        tgt_mask = Image.open(os.path.join(exp_folder, PARAMS_MAP, f"Round {num_round}.png"))
+        tgt_mask = tgt_mask.crop(center_coord[3:7])
+        # # if the designated area is (nearly) blank, drop this area and return
+        # px_threshold = 10
+        # if count_non_white_pixel(tgt_mask) < px_threshold:
+        #     print(f"Warning: designated area's pixel count is lower than {px_threshold}.")
+        #     print(f"Warning: round {num_round} area {area} not executed.")
+        #     return False
+        # modify cleave mask
+        # first create a [366, 366] empty mask
+        mod_mask = Image.new('P', [366,366], color = (255,255,255))
+        # then paste the [300, 300] cleave mask to the center
+        bg_width, bg_height = mod_mask.size
+        overlay_width, overlay_height = tgt_mask.size
+        x_center = round((bg_width - overlay_width) / 2)
+        y_center = round((bg_height - overlay_height) / 2)
+        mod_mask.paste(tgt_mask, (x_center, y_center))
+        ###########################################################################################
+        # # stretch the modified mask to [2304, 2304]
+        # mod_mask = mod_mask.resize([2304, 2304]).rotate(180)
+        # # crop out laser area
+        # mod_mask = mod_mask.crop((208, 32, 208+1906, 32+2272))
+        # # resize laser area to [1024, 1024]
+        # mod_mask = mod_mask.resize([1024, 1024])
+        # # flip vertically, then rotate 90 degrees to the left
+        # mod_mask = mod_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM).rotate(90)
+        ###########################################################################################
+        # create new mask with 2304x2304 px and 200 px margin
+        tmp_mask = Image.new('P', [2304+200,2304+200], color = (255,255,255))
+        # stretch the modified mask to [2304, 2304]
+        mod_mask = mod_mask.resize([2304, 2304])
+        # paste modified mask onto the temporary mask (with 100 px margin)
+        tmp_mask.paste(mod_mask, (100,100))
+        # apply cropping, but from the perspective of bottom-right corner
+        rota, vert, hori, x, y, w, h = load_mask_preset(
+            os.path.join(os.path.dirname(os.path.realpath(__file__)), "default_calibration.yaml"), 1
+        )
+        mod_mask = tmp_mask.crop((
+            2304 + 100 - h - y,
+            2304 + 100 - w - x,
+            2304 + 100 - y,
+            2304 + 100 - x
+        ))
+        # rotate and flip based on mask calibration preset
+        mod_mask = mod_mask.rotate(rota+180)
+        if vert:
+            mod_mask = mod_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+        if hori:
+            mod_mask = mod_mask.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        # resize laser area to [1024, 1024]
+        mod_mask = mod_mask.resize([1024, 1024])
+        ###########################################################################################
+        # save the modified image as the new temp mask
+        rtn_mask = mod_mask.convert('L')
+        rtn_mask = ImageOps.invert(rtn_mask)
+        rtn_mask.save(os.path.join(exp_folder, PARAMS_TMP), format='PNG')
+        return center_coord[0:3]
+    except FileNotFoundError as e:
+        print(f"Warning: {e}")
+        print(f"Warning: round {num_round} area {area} not executed.")
+        return [[],[],[]]
+
+
+def record_laser_coord(laser_img_folder_path, coords, num_round, execute_status):
+    """
+    Function: create/append (laser imaging) coordinates into a given csv file.
+    if the file name/path does not exist, a file will be created.
+    if the file name/path already exists, coordinates will be appended at the end of the file.
+    """
+    # find csv file name
+    file = os.path.join(laser_img_folder_path, f"Round {num_round} (recorded).csv")
+    # if the file already exists, append new coordinates at the end of the file
+    if os.path.exists(file):
+        # read existing csv data as dataframe 1
+        df1 = pd.read_csv(file, usecols=[1,2,3,4])
+        # create new coordinates as dataframe 2
+        df2 = pd.DataFrame({
+            "x": [coords[0]],
+            "y": [coords[1]],
+            "z": [coords[2]],
+            "exec": execute_status
+        })
+        # avoid concat empty dataframes (may cause empty rows)
+        if df1.empty:
+            df = df2
+        else:
+            df = pd.concat([df1, df2], ignore_index=True)
+        df.to_csv(file, index=True)
+    # if the file does not exist, create the file and store coordinates
+    else:
+        df = pd.DataFrame({
+            "x": [coords[0]],
+            "y": [coords[1]],
+            "z": [coords[2]],
+            "exec": execute_status
+        })
+        df.to_csv(file, index=True)
+
+
+# ========================================= main function =========================================
+
+def mercury_03():
+    """
+    Main application loop of mercury 01, return user inputs when loop ended.
+    """
+    # set customtkinter appearance mode and color theme
+    customtkinter.set_appearance_mode("dark")
+    customtkinter.set_default_color_theme("blue")
+    # enter main loop and return user inputs when ended
+    app = App()
+    app.resizable(False, False)
+    app.protocol("WM_DELETE_WINDOW", app.on_closing)
+    app.mainloop()
+    try:
+        return app.rtn
+    except AttributeError:
+        return ([],'','',[])
