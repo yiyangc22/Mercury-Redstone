@@ -1,5 +1,5 @@
 """
-Mercury 04: image stitching previews, project version 1.2 (with python 3.9).
+Mercury 04: image stitching previews, project version 1.24 (with python 3.9).
 """
 
 import os
@@ -19,7 +19,6 @@ WINDOW_RES = "800x100"
 
 PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
 PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
-PARAMS_CYC = "config_scan_fov"
 PARAMS_MCI = "image_multichannel"
 PARAMS_MSK = "image_mask"
 PARAMS_LSR = "image_laser"
@@ -69,7 +68,7 @@ class App(customtkinter.CTk):
         self.btn_cmc.grid(row=1, column=2, padx=(0,10), pady=(5,10), sticky="nesw", columnspan=1)
         self.ent_rnd = customtkinter.CTkEntry(
             master = self,
-            placeholder_text = "(Round Number)"
+            placeholder_text = "(Round Index)"
         )
         self.ent_rnd.grid(row=1, column=3, padx=(0,10), pady=(5,10), sticky="nesw", columnspan=1)
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on call ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -148,17 +147,21 @@ class App(customtkinter.CTk):
                 num_round = int(self.ent_rnd.get())
                 file_endswith = '.tif'
                 file_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_LSR)
-                list_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_SCT)
-                center = pd.read_csv(
-                    list_location, keep_default_na = False, usecols=[1,2,4,5,6,7]).values.tolist()
-                coords = []
+                # list_location = os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_SCT)
+                # center = pd.read_csv(
+                #     list_location, keep_default_na = False, usecols=[1,2,4,5,6,7]).values.tolist()
+                # coords = []
+                coords = pd.read_csv(
+                    os.path.join(self.frm_ctl.ent_pth.get(), PARAMS_MAP, f"Round {num_round}.csv"),
+                    keep_default_na = False, usecols = [1,2,4,5,6,7]
+                ).values.tolist()
                 images = []
                 for file in os.listdir(file_location):
                     if file[-len(file_endswith):] == file_endswith and file[0:5] != "Round":
                         file_prefix_num = int(file[0:4]) - 1000
-                        file_affix_num = int(file[5:9]) - 1000
+                        # file_affix_num = int(file[5:9]) - 1000
                         if file_prefix_num == num_round:
-                            coords.append(center[file_affix_num])
+                            # coords.append(center[file_affix_num])
                             images.append(os.path.join(file_location, file))
                 if len(images) == 0:
                     print(f"Warning: found no laser images with matching round number {num_round}.")
@@ -308,3 +311,6 @@ def mercury_04():
         app.mainloop()
     except AttributeError:
         return None
+
+if __name__ == "__main__":
+    print(mercury_04())
