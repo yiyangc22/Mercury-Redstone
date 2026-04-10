@@ -1263,3 +1263,6 @@ def mercury_00(
         return app_main.rtn
     except AttributeError:
         return ('', '', '', [], LASER_SIZE)
+
+if __name__ == "__main__":
+    print(mask_calibration(LASER_SAVE))
