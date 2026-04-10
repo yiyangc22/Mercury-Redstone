@@ -9,6 +9,8 @@
 You can run Python programs independently on any computer, given you have an experiment folder generated from the pi-seq microscope. Future versions of this repository may included LabVIEW programs. **This repository is intended for documentation/internal uses only**.
 
 ## How to use this repository
+First, use `mercury.yml` to install conda environment for this project. This version (1.24) does not currently use Cellpose (version 3.1.1.1) as included in the yml file, but future versions (1.25+) may require this version of Cellpose.
+
 If you only need to run Python programs, download this repository and run the `mercury_XX.py` files. Within each of these files, run functions named `mercury_XX()`. You don't need to put this repository or its files into an experiment folder in order to run the program.
 
 If you're running the programs together with LabVIEW programs on a pi-seq microscope computer, download and extract this repository into `..\\MAIN_SCRIBE_CONTROL_2022_Update Folder (1.24)\\_Python\\Mercury 1.24`, where `MAIN_SCRIBE_CONTROL_2022_Update Folder (1.24)` is your LabVIEW project folder.
@@ -16,11 +18,11 @@ If you're running the programs together with LabVIEW programs on a pi-seq micros
 ## Files in this repository
 ```
 Mercury-Redstone-1.24         # (this repository)
- ├─ ShearValve_Module.py       # 
+ ├─ ShearValve_Module.py       # shear valve control functions
  ├─ default_calibration.yaml   # default laser calibration preset, stored as yaml
  ├─ imagej_mask_v124_366px.txt # ImageJ script for watershed segmentation (366px)
  ├─ imagej_mask_v124_732px.txt # ImageJ script for watershed segmentation (732px)
- ├─ main.py                    # for interfacing Python to Labview
+ ├─ mercury.yml                # conda env for project mercury
  ├─ mercury_00.py              # for mask calibration
  ├─ mercury_01.py              # for tissue imaging
  ├─ mercury_02.py              # for making submasks and bit strings
