@@ -11,20 +11,21 @@ import customtkinter
 import numpy as np
 from PIL import Image, ImageTk, ImageOps, ImageChops
 
-from mercury_01 import open_file_dialog
+from mercury_01 import open_file_dialog, ctk_entry_warning
 
-# from main import PARAMS_DTP
-# from main import PARAMS_EXP
-# from main import PARAMS_MCI
-# from main import PARAMS_MSK
-# from main import PARAMS_LSR
-# from main import PARAMS_MAP
-# from main import PARAMS_PLN
-# from main import PARAMS_CRD
-# from main import PARAMS_GLB
-# from main import PARAMS_SCT
-# from main import PARAMS_BIT
-# from main import PARAMS_TMP
+# from params import PARAMS_DTP
+# from params import PARAMS_EXP
+# from params import PARAMS_MCI
+# from params import PARAMS_MSK
+# from params import PARAMS_LSR
+# from params import PARAMS_MAP
+# from params import PARAMS_PLN
+# from params import PARAMS_CRD
+# from params import PARAMS_GLB
+# from params import PARAMS_SCT
+# from params import PARAMS_BIT
+# from params import PARAMS_TMP
+# from params import PARAMS_VER
 
 # ctk window title
 WINDOW_TXT = "Mercury 0 - Mask Calibration"
@@ -48,7 +49,7 @@ class Root:
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on enable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self):
         super().__init__()
-        self.rtn = ('', '', '', [], LASER_SIZE)
+        self.rtn = ('', '', '', [], -1)
 
 
 # app class for ctk window mainloop
@@ -119,6 +120,8 @@ class App(customtkinter.CTk, Root):
         self.ctk_button_commence.grid(
             row=3, column=0, padx=10, pady=(5,10), sticky="ew", columnspan=3
         )
+        # create label to display information on the bottom of the frame
+        self.lbl_inf = customtkinter.CTkLabel(master=self, font=customtkinter.CTkFont(size=10))
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on call ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def filedialogue_setpath(self, ctk_entry:customtkinter.CTkEntry=None):
         """
@@ -129,7 +132,8 @@ class App(customtkinter.CTk, Root):
             os.path.dirname(os.path.realpath(__file__)),
             [("Mask Image", "*.png")]
         )
-        ctk_entry.configure(textvariable=tkinter.StringVar(master=self,value=file))
+        if file != "":
+            ctk_entry.configure(textvariable=tkinter.StringVar(master=self,value=file))
     # ---------------------------------------------------------------------------------------------
     def skip(self):
         """
@@ -147,25 +151,38 @@ class App(customtkinter.CTk, Root):
             x = round(float(control_panel_rtn[0]))
         except (ValueError, TypeError):
             ctk_entry_warning(self.control_pannels.entries[0])
+            self.lbl_inf.configure(text=f"Warning: \"{control_panel_rtn[0]}\" must be int/float")
+            self.lbl_inf.grid(row=6, column=0, padx=10, pady=(0,10), sticky="nesw", columnspan=3)
             return
         try:
             y = round(float(control_panel_rtn[1]))
         except (ValueError, TypeError):
             ctk_entry_warning(self.control_pannels.entries[1])
+            self.lbl_inf.configure(text=f"Warning: \"{control_panel_rtn[1]}\" must be int/float")
+            self.lbl_inf.grid(row=6, column=0, padx=10, pady=(0,10), sticky="nesw", columnspan=3)
             return
         try:
             z = round(float(control_panel_rtn[2]))
         except (ValueError, TypeError):
             ctk_entry_warning(self.control_pannels.entries[2])
+            self.lbl_inf.configure(text=f"Warning: \"{control_panel_rtn[2]}\" must be int/float")
+            self.lbl_inf.grid(row=6, column=0, padx=10, pady=(0,10), sticky="nesw", columnspan=3)
             return
         try:
             scan_size = float(control_panel_rtn[3])
         except (ValueError, TypeError):
             ctk_entry_warning(self.control_pannels.entries[3])
+            self.lbl_inf.configure(text=f"Warning: \"{control_panel_rtn[3]}\" must be int/float")
+            self.lbl_inf.grid(row=6, column=0, padx=10, pady=(0,10), sticky="nesw", columnspan=3)
             return
         if not os.path.isfile(self.ctk_entry_maskpath.get()):
             ctk_entry_warning(self.ctk_entry_maskpath)
+            self.lbl_inf.configure(
+                text=f"Warning: cannot read \"{self.ctk_entry_maskpath.get()}\" as a file"
+            )
+            self.lbl_inf.grid(row=6, column=0, padx=10, pady=(0,10), sticky="nesw", columnspan=3)
             return
+        self.lbl_inf.grid_forget()
         self.rtn = (
             os.path.dirname(os.path.realpath(__file__)),
             LASER_SAVE,
@@ -258,6 +275,7 @@ class MaskCalibration(customtkinter.CTk):
         # load and rescale background image (laser image)
         bg = Image.open(bg_image_path)
         bw, bh = bg.size
+        self.ref = list(bg.size)
         bg = bg.resize((round(bw * image_scaling), round(bh * image_scaling)), resample=0)
         bg = convert_to_rgba(bg, alpha=255)
         self.bg_image = bg
@@ -707,7 +725,7 @@ class CalibrationControl(customtkinter.CTkFrame):
             self.master.image_display.h = h
             self.master.image_display.apply_preset()
         except (ValueError, TypeError, RuntimeError, FileNotFoundError) as e:
-            print(f"Warning: unable to load preset at {path}: {e}")
+            print(f"Warning: unable to load preset \"{path}\": {e}")
     # ---------------------------------------------------------------------------------------------
     def save_preset(self, image_scaling=0.5):
         """
@@ -731,29 +749,11 @@ class CalibrationControl(customtkinter.CTkFrame):
                         'y': self.master.image_display.y / image_scaling,
                         'w': self.master.image_display.w / image_scaling,
                         'h': self.master.image_display.h / image_scaling,
+                        'ref': self.master.ref
                     }
                     yaml.dump(data, file, default_flow_style=False, sort_keys=False)
             except (ValueError, TypeError, RuntimeError) as e:
-                print(f"Warning: unable to save preset at {path}: {e}")
-            # # for older txt-based preset files
-            # try:
-            #     if os.path.exists(path):
-            #         existing = open(path, 'r+', encoding="utf-8").readlines()
-            #     file = open(path, 'w', encoding="utf-8")
-            #     file.write(f"{self.master.image_display.rotation}\n")
-            #     file.write(f"{int(self.master.image_display.vertical)}\n")
-            #     file.write(f"{int(self.master.image_display.horizontal)}\n")
-            #     file.write(f"{int(self.master.image_display.x / image_scaling)}\n")
-            #     file.write(f"{int(self.master.image_display.y / image_scaling)}\n")
-            #     file.write(f"{int(self.master.image_display.w / image_scaling)}\n")
-            #     file.write(f"{int(self.master.image_display.h / image_scaling)}\n")
-            #     file.close()
-            # except (ValueError, TypeError, RuntimeError) as e:
-            #     if existing is not None:
-            #         file = open(path, 'w', encoding="utf-8")
-            #         file.writelines(existing)
-            #         file.close()
-            #     print(f"Warning: unable to save preset at {path}: {e}")
+                print(f"Warning: unable to save preset \"{path}\": {e}")
     # ---------------------------------------------------------------------------------------------
     def change_foreground(self, image_scaling=1):
         """
@@ -1210,35 +1210,9 @@ def load_mask_preset(file_path, scaling_factor):
             w = round(float(data['w'])*scaling_factor)
             h = round(float(data['h'])*scaling_factor)
     except (ValueError, TypeError, RuntimeError) as e:
-        print(f"Warning: unable to load preset at {file_path}: {e}")
+        print(f"Warning: unable to load preset \"{file_path}\": {e}")
         return False
     return (rotation, vertical, horizontal, x, y, w, h)
-    # # for older txt-based preset files
-    # try:
-    #     file = open(file_path, 'r+', encoding="utf-8").readlines()
-    #     rotation = int(file[0])
-    #     vertical = False if file[1] == "0\n" else True
-    #     horizontal = False if file[2] == "0\n" else True
-    #     x = round(int(file[3])*scaling_factor)
-    #     y = round(int(file[4])*scaling_factor)
-    #     w = round(int(file[5])*scaling_factor)
-    #     h = round(int(file[6])*scaling_factor)
-    # except (ValueError, TypeError, RuntimeError) as e:
-    #     print(f"Warning: unable to load preset at {file_path}: {e}")
-    #     return False
-    # return (rotation, vertical, horizontal, x, y, w, h)
-
-
-def ctk_entry_warning(entry: customtkinter.CTkEntry, color="brown", duration=50):
-    """
-    Function: briefly set designated ctk entry's foreground to a specific color.
-    """
-    # get original color
-    original_color = entry.cget("fg_color")
-    # set entry foreground color
-    entry.configure(fg_color=color)
-    # set entry foreground color to original
-    entry.after(duration, lambda: entry.configure(fg_color=original_color))
 
 
 # ========================================= main function =========================================
@@ -1258,11 +1232,15 @@ def mercury_00(
     app_main = App(init_x, init_y, init_z)
     app_main.resizable(False, False)
     app_main.protocol("WM_DELETE_WINDOW", app_main.on_closing)
+    app_main.attributes("-topmost", True)
+    app_main.after_idle(app_main.attributes, "-topmost", False)
+    app_main.after(10, app_main.focus)
     app_main.mainloop()
+    # return ('image folder path', 'laser image name', 'mask image path', [x,y,z], scan size)
     try:
         return app_main.rtn
     except AttributeError:
-        return ('', '', '', [], LASER_SIZE)
+        return ('', '', '', [], -1)
 
-if __name__ == "__main__":
-    print(mask_calibration(LASER_SAVE))
+if __name__ == '__main__':
+    mask_calibration("default_mask_result.tif")
