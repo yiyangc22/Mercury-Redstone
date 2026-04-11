@@ -16,7 +16,7 @@ from PIL import Image, ImageDraw
 
 from mercury_01 import pyplot_create_region, open_file_dialog
 
-Image.MAX_IMAGE_PIXELS = 300000000
+Image.MAX_IMAGE_PIXELS = 450000000
 
 WINDOW_TXT = "Mercury II - Laser Scheme Constructor"
 WINDOW_RES = "800x190"
