@@ -17,22 +17,24 @@ If you're running the programs together with LabVIEW programs on a pi-seq micros
 
 ## Files in this repository
 ```
-Mercury-Redstone-1.24         # (this repository)
- ├─ ShearValve_Module.py       # shear valve control functions
- ├─ default_calibration.yaml   # default laser calibration preset, stored as yaml
- ├─ imagej_mask_v124_366px.txt # ImageJ script for watershed segmentation (366px)
- ├─ imagej_mask_v124_732px.txt # ImageJ script for watershed segmentation (732px)
- ├─ mercury.yml                # conda env for project mercury
- ├─ mercury_00.py              # for mask calibration
- ├─ mercury_01.py              # for tissue imaging
- ├─ mercury_02.py              # for making submasks and bit strings
- ├─ mercury_02_copy.py         # mercury_02.py modified for running 732px masks
- ├─ mercury_03.py              # for coordinating laser and fluidics
- ├─ mercury_03_copy.py         # mercury_03.py modified for running 732px masks
- ├─ mercury_04.py              # for previewing and stitching images
- ├─ mercury_05.py              # for single fluidic procedures
- ├─ mercury_06.py              # for single laser procedures
- ├─ readme.md                  # (this file)
+Mercury-Redstone-1.24          # (this repository)
+ ├─ ShearValve_Module.py        # shear valve control functions
+ ├─ default_calibration.yaml    # default laser calibration preset, stored as yaml
+ ├─ default_mask.png            # default mask used in calibration (do not delete)
+ ├─ default_mask_result.tif     # default laser image used in calibration (do not delete)
+ ├─ imagej_mask_v124_366px.txt  # ImageJ script for watershed segmentation (366px)
+ ├─ imagej_mask_v124_732px.txt  # ImageJ script for watershed segmentation (732px)
+ ├─ mercury.yml                 # conda env for project mercury
+ ├─ mercury_00.py               # for mask calibration
+ ├─ mercury_01.py               # for tissue imaging
+ ├─ mercury_02.py               # for making submasks and bit strings
+ ├─ mercury_02_copy.py          # mercury_02.py modified for running 732px masks
+ ├─ mercury_03.py               # for coordinating laser and fluidics
+ ├─ mercury_03_copy.py          # mercury_03.py modified for running 732px masks
+ ├─ mercury_04.py               # for previewing and stitching images
+ ├─ mercury_05.py               # for single fluidic procedures
+ ├─ mercury_06.py               # for single laser procedures
+ ├─ readme.md                   # (this file)
 ```
 ## Files in a typical experiment folder
 ```
