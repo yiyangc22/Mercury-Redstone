@@ -14,6 +14,8 @@ from mercury_00 import load_mask_preset
 from mercury_01 import open_file_dialog
 from mercury_02 import count_non_white_pixel
 
+Image.MAX_IMAGE_PIXELS = 450000000
+
 WINDOW_TXT = "Mercury III - Fluid Scheme Constructor"
 WINDOW_RES = "800x100"
 
