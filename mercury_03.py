@@ -13,7 +13,7 @@ from PIL import Image, ImageOps
 
 from mercury_00 import load_mask_preset
 from mercury_01 import ctk_entry_warning
-from mercury_02 import count_non_white_pixel, FileInput, InputRow, PopUpWindow
+from mercury_02 import count_non_white_pixel, FileInput, InputRow, PopUpWindow, MRES
 
 # from params import PARAMS_DTP
 # from params import PARAMS_EXP
@@ -356,18 +356,18 @@ def update_mask(img_folder, num_round, area, rota, vert, hori, x, y, w, h):
         x_center = round((bg_width - overlay_width) / 2)
         y_center = round((bg_height - overlay_height) / 2)
         mod_mask.paste(tgt_mask, (x_center, y_center))
-        # create new mask with 2304x2304 px and 200 px margin
-        tmp_mask = Image.new('P', [2304+200,2304+200], color = (255,255,255))
-        # stretch the modified mask to [2304, 2304]
-        mod_mask = mod_mask.resize([2304, 2304])
+        # create new mask with size of multichannel image and 200 px margin
+        tmp_mask = Image.new('P', [MRES+200,MRES+200], color = (255,255,255))
+        # stretch the modified mask to the size of multichannel image
+        mod_mask = mod_mask.resize([MRES, MRES])
         # paste modified mask onto the temporary mask (with 100 px margin)
         tmp_mask.paste(mod_mask, (100,100))
         # apply cropping, but from the perspective of bottom-right corner
         mod_mask = tmp_mask.crop((
-            2304 + 100 - h - y,
-            2304 + 100 - w - x,
-            2304 + 100 - y,
-            2304 + 100 - x
+            MRES + 100 - h - y,
+            MRES + 100 - w - x,
+            MRES + 100 - y,
+            MRES + 100 - x
         ))
         # rotate and flip based on mask calibration preset
         mod_mask = mod_mask.rotate(rota+180)
