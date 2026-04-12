@@ -1,10 +1,9 @@
 """
-Mercury 04: image stitching previews, project version 1.24 (with python 3.9).
+Mercury 04: image stitching previews, project version 1.25 (with python 3.9).
 """
 
 import os
 import tkinter as tk
-from datetime import date
 
 import pandas as pd
 import customtkinter
@@ -14,21 +13,24 @@ from PIL import Image
 from mercury_01 import pyplot_create_region, open_file_dialog
 from mercury_02 import read_xycoordinates
 
-WINDOW_TXT = "Mercury IV - Image Stitching Preview"
-WINDOW_RES = "800x100"
+from params import PARAMS_DTP
+from params import PARAMS_EXP
+from params import PARAMS_MCI
+from params import PARAMS_MSK
+from params import PARAMS_LSR
+from params import PARAMS_MAP
+from params import PARAMS_PLN
+# from params import PARAMS_CRD
+# from params import PARAMS_GLB
+# from params import PARAMS_SCT
+# from params import PARAMS_BIT
+# from params import PARAMS_TMP
+# from params import PARAMS_VER
 
-PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
-PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
-PARAMS_MCI = "image_multichannel"
-PARAMS_MSK = "image_mask"
-PARAMS_LSR = "image_laser"
-PARAMS_MAP = "image_cleave_map"
-PARAMS_PLN = "coord_planned.csv"
-PARAMS_CRD = "coord_recorded.csv"
-PARAMS_GLB = "image_mask_global.png"
-PARAMS_SCT = "coord_scan_center.csv"
-PARAMS_BIT = "config_bit_scheme.csv"
-PARAMS_TMP = "image_mask_tmp.png"
+# ctk window title
+WINDOW_TXT = "Mercury IV - Image Stitching Preview"
+# ctk window size
+WINDOW_RES = "800x100"
 
 
 # ===================================== customtkinter classes =====================================
@@ -308,6 +310,9 @@ def mercury_04():
         app = App()
         app.resizable(False, False)
         app.protocol("WM_DELETE_WINDOW", app.on_closing)
+        app.attributes("-topmost", True)
+        app.after_idle(app.attributes, "-topmost", False)
+        app.after(10, app.focus)
         app.mainloop()
     except AttributeError:
         return None
