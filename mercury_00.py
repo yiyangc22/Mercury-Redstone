@@ -706,7 +706,7 @@ class CalibrationControl(customtkinter.CTkFrame):
         try:
             path = open_file_dialog(
                 "Select a preset file",
-                os.path.join(os.path.expanduser("~"), "Desktop"),
+                os.path.dirname(os.path.abspath(__file__)),
                 [("Mask Calibration Preset", "*.yaml *.yml")]
             )
             if path is None or '':
@@ -734,7 +734,7 @@ class CalibrationControl(customtkinter.CTkFrame):
         path = filedialog.asksaveasfilename(
             title="Save preset as file",
             defaultextension="*.yaml",
-            initialdir=os.path.join(os.path.expanduser("~"), "Desktop"),
+            initialdir=os.path.dirname(os.path.abspath(__file__)),
             filetypes=[("Mask Calibration Preset", "*.yaml *.yml")]
         )
         if path != '':
@@ -762,7 +762,7 @@ class CalibrationControl(customtkinter.CTkFrame):
         try:
             path = open_file_dialog(
                 "Select foreground",
-                os.path.join(os.path.expanduser("~"), "Desktop"),
+                os.path.dirname(os.path.abspath(__file__)),
                 [("Mask Image", "*.png")]
             )
         except FileNotFoundError as e:
@@ -784,7 +784,7 @@ class CalibrationControl(customtkinter.CTkFrame):
         try:
             path = open_file_dialog(
                 "Select background",
-                os.path.join(os.path.expanduser("~"), "Desktop"),
+                os.path.dirname(os.path.abspath(__file__)),
                 [("Laser Image", "*.tif *.tiff")]
             )
         except FileNotFoundError as e:
