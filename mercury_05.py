@@ -6,6 +6,20 @@ import math
 import tkinter as tk
 import customtkinter
 
+# from params import PARAMS_DTP
+# from params import PARAMS_EXP
+# from params import PARAMS_MCI
+# from params import PARAMS_MSK
+# from params import PARAMS_LSR
+# from params import PARAMS_MAP
+# from params import PARAMS_PLN
+# from params import PARAMS_CRD
+# from params import PARAMS_GLB
+# from params import PARAMS_SCT
+# from params import PARAMS_BIT
+# from params import PARAMS_TMP
+# from params import PARAMS_VER
+
 WINDOW_TXT = "Mercury V - Single Fluidic Procedure"
 WINDOW_RES = "600x120"
 PARAMS_PRT = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10",
@@ -135,6 +149,9 @@ def mercury_05():
     # enter main loop and return user inputs when ended
     app = App()
     app.resizable(False, False)
+    app.attributes("-topmost", True)
+    app.after_idle(app.attributes, "-topmost", False)
+    app.after(10, app.focus)
     app.mainloop()
     try:
         return app.rtn
