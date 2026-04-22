@@ -1,12 +1,11 @@
 """
-Mercury 01: image scheme constructor, project version 1.22B (with python 3.9).
+Mercury 01: image scheme constructor, project version 1.25 (with python 3.9).
 """
 
 import os
 import math
 import tkinter
 from tkinter import filedialog
-from datetime import date
 
 import customtkinter
 import numpy as np
@@ -14,24 +13,30 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from PIL import Image
 
-WINDOW_TXT = "Mercury I - Image Scheme Constructor"
-WINDOW_RES = "807x237"
-PARAMS_TAB = ["Global Tissue", "Square Subgroup"]
-PARAMS_CRN = 4
-PARAMS_RES = 366
+from params import PARAMS_DTP
+from params import PARAMS_EXP
+from params import PARAMS_MCI
+from params import PARAMS_MSK
+from params import PARAMS_LSR
+from params import PARAMS_MAP
+from params import PARAMS_PLN
+from params import PARAMS_CRD
+# from params import PARAMS_GLB
+# from params import PARAMS_SCT
+# from params import PARAMS_BIT
+# from params import PARAMS_TMP
+from params import PARAMS_VER
 
-PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
-PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
-PARAMS_MCI = "image_multichannel"
-PARAMS_MSK = "image_mask"
-PARAMS_LSR = "image_laser"
-PARAMS_MAP = "image_cleave_map"
-PARAMS_PLN = "coord_planned.csv"
-PARAMS_CRD = "coord_recorded.csv"
-PARAMS_GLB = "image_mask_global.png"
-PARAMS_SCT = "coord_scan_center.csv"
-PARAMS_BIT = "config_bit_scheme.csv"
-PARAMS_TMP = "image_mask_tmp.png"
+# ctk window title
+WINDOW_TXT = "Mercury I - Image Scheme Constructor"
+# ctk window size
+WINDOW_RES = "807x237"
+# ctk tabview titles
+PARAMS_TAB = ["Global Tissue", "Square Subgroup"]
+# scan scheme default corner radius
+PARAMS_CRN = 4
+# scan scheme default multichannel resolution (um)
+PARAMS_RES = 366
 
 
 # ===================================== customtkinter classes =====================================
@@ -43,7 +48,7 @@ class Moa:
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on enable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self):
         super().__init__()
-        self.rtn = ([], '', 0.0)
+        self.rtn = ([],'',0.0)
 
 
 class App(customtkinter.CTk, Moa):
@@ -64,10 +69,10 @@ class App(customtkinter.CTk, Moa):
         self.sample_z = sample_z
         # -------------------------------------- GUI setting --------------------------------------
         # create tabviews for global tissue imaging and subgroup imaging
-        self.tab_ent = customtkinter.CTkTabview(master=self)
+        self.tab_ent = customtkinter.CTkTabview(master=self, height=194)
         self.tab_ent.add(PARAMS_TAB[0])
         self.tab_ent.add(PARAMS_TAB[1])
-        self.tab_ent.grid(row=0, column=0, padx=10, pady=(0,5), sticky="ew", columnspan=3)
+        self.tab_ent.grid(row=3, column=0, padx=10, pady=(0,5), sticky="ew", columnspan=3)
         # configure the tabview for global tissue imaging
         # min x
         self.inp_minx = Entry(
@@ -177,93 +182,280 @@ class App(customtkinter.CTk, Moa):
             height = 28,
             text = "Experiment Save Path:"
         )
-        self.lbl_pth.grid(row=1, column=0, padx=(10,0), pady=5, columnspan=1)
+        self.lbl_pth.grid(row=1, column=0, padx=(10,0), pady=(15,5), columnspan=1)
         self.ent_pth = customtkinter.CTkEntry(
             master = self,
             width = 575,
             height = 28,
             textvariable = tkinter.StringVar(master=self, value=PARAMS_EXP)
         )
-        self.ent_pth.grid(row=1, column=1, padx=(0,5), pady=5, columnspan=1)
+        self.ent_pth.grid(row=1, column=1, padx=(0,5), pady=(15,5), columnspan=1)
         self.btn_aof = customtkinter.CTkButton(
             master = self,
             width = 28,
             height = 28,
             text = "...",
-            command = self.app_aof
+            command = lambda: self.app_aof(self.ent_pth)
         )
-        self.btn_aof.grid(row=1, column=2, padx=(0,10), pady=5, columnspan=1)
+        self.btn_aof.grid(row=1, column=2, padx=(0,10), pady=(15,5), columnspan=1)
         # configure preview and commence buttons
-        self.btn_prv = customtkinter.CTkButton(
-            master = self,
+        self.btn_prv_0 = customtkinter.CTkButton(
+            master = self.tab_ent.tab(PARAMS_TAB[0]),
             text = "Preview Scheme",
             command = self.app_prv,
             fg_color = "transparent",
             border_width = 1,
             hover_color = "gray23"
         )
-        self.btn_prv.grid(row=2, column=0, padx=10, pady=5, sticky="ew", columnspan=3)
-        self.btn_cmc = customtkinter.CTkButton(master=self, text="Commence", command=self.app_exp)
-        self.btn_cmc.grid(row=3, column=0, padx=10, pady=(5,10), sticky="ew", columnspan=3)
+        self.btn_prv_0.grid(row=3, column=0, padx=(0,8), pady=(15,5), sticky="ew", columnspan=8)
+        self.btn_cmc_0 = customtkinter.CTkButton(
+            master=self.tab_ent.tab(PARAMS_TAB[0]),
+            text="Commence (in LabVIEW)",
+            command=self.app_exp
+        )
+        self.btn_cmc_0.grid(row=4, column=0, padx=(0,8), pady=(0,5), sticky="ew", columnspan=8)
+        self.btn_prv_1 = customtkinter.CTkButton(
+            master = self.tab_ent.tab(PARAMS_TAB[1]),
+            text = "Preview Scheme",
+            command = self.app_prv,
+            fg_color = "transparent",
+            border_width = 1,
+            hover_color = "gray23"
+        )
+        self.btn_prv_1.grid(row=3, column=0, padx=(0,8), pady=(15,5), sticky="ew", columnspan=8)
+        self.btn_cmc_1 = customtkinter.CTkButton(
+            master=self.tab_ent.tab(PARAMS_TAB[1]),
+            text="Commence (in LabVIEW)",
+            command=self.app_exp
+        )
+        self.btn_cmc_1.grid(row=4, column=0, padx=(0,8), pady=(0,5), sticky="ew", columnspan=8)
+        # create label to display information on the bottom of the frame
+        self.lbl_inf = customtkinter.CTkLabel(
+            master=self, font=customtkinter.CTkFont(size=10), width=610
+        )
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on call ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    def app_aof(self):
+    def app_aof(self, target, folder=True):
         """
         Function: set ent_pth to filedialog.askdirectory output.
         """
         file_path = open_file_dialog(
-            init_title = "Select experiment folder",
+            init_title = "Select a folder" if folder else "Select a file",
             init_dir = PARAMS_DTP,
-            init_types = False
+            init_types = False if folder else None
         )
         if file_path != "":
-            self.ent_pth.configure(textvariable=tkinter.StringVar(master=self, value=file_path))
+            try:
+                target.configure(textvariable=tkinter.StringVar(master=self, value=file_path))
+            except ValueError:
+                target.set(file_path)
     # ---------------------------------------------------------------------------------------------
     def app_prv(self, save: bool = False):
         """
         Function: get a preview of the scan scheme with pyplot.
         """
         # check which tab is active and read from it
-        try:
-            if self.tab_ent.get() == PARAMS_TAB[0]:
-                return scheme_export_packed(
-                    scheme_create_global(
-                        float(self.inp_minx.get_entry()),
-                        float(self.inp_maxx.get_entry()),
-                        float(self.inp_miny.get_entry()),
-                        float(self.inp_maxy.get_entry()),
-                        int(self.inp_crn.get_entry()),
-                        float(self.inp_rs0.get_entry())
-                    ),
-                    self.ent_pth.get(),
-                    float(self.inp_rz0.get_entry()),
-                    save,
-                    float(self.inp_rs0.get_entry())
+        if self.tab_ent.get() == PARAMS_TAB[0]:
+            # check for input types
+            try:
+                param1 = float(self.inp_minx.get_entry())
+            except (TypeError, ValueError):
+                ctk_entry_warning(self.inp_minx.entry)
+                self.lbl_inf.configure(
+                    text=f"Warning: \"{self.inp_minx.get_entry()}\" must be int/float"
                 )
-            if self.tab_ent.get() == PARAMS_TAB[1]:
-                return scheme_export_packed(
-                    scheme_create_subgrp(
-                        float(self.inp_ctrx.get_entry()),
-                        float(self.inp_ctry.get_entry()),
-                        int(self.inp_dim.get_entry()),
-                        float(self.inp_rs1.get_entry())
-                    ),
-                    self.ent_pth.get(),
-                    float(self.inp_rz1.get_entry()),
-                    save,
-                    float(self.inp_rs1.get_entry())
+                self.lbl_inf.grid(row=5,column=0,padx=10,pady=(0,10),sticky="nesw",columnspan=3)
+                self.geometry(
+                    f"{WINDOW_RES.split('x',maxsplit=1)[0]}x{int(WINDOW_RES.split('x')[1])+42}"
                 )
-        except (ValueError, TypeError) as e:
-            print(f"Warning: {e}, check parameter input format.")
+                return
+            try:
+                param2 = float(self.inp_maxx.get_entry())
+            except (TypeError, ValueError):
+                ctk_entry_warning(self.inp_maxx.entry)
+                self.lbl_inf.configure(
+                    text=f"Warning: \"{self.inp_maxx.get_entry()}\" must be int/float"
+                )
+                self.lbl_inf.grid(row=5,column=0,padx=10,pady=(0,10),sticky="nesw",columnspan=3)
+                self.geometry(
+                    f"{WINDOW_RES.split('x',maxsplit=1)[0]}x{int(WINDOW_RES.split('x')[1])+42}"
+                )
+                return
+            try:
+                param3 = float(self.inp_miny.get_entry())
+            except (TypeError, ValueError):
+                ctk_entry_warning(self.inp_miny.entry)
+                self.lbl_inf.configure(
+                    text=f"Warning: \"{self.inp_miny.get_entry()}\" must be int/float"
+                )
+                self.lbl_inf.grid(row=5,column=0,padx=10,pady=(0,10),sticky="nesw",columnspan=3)
+                self.geometry(
+                    f"{WINDOW_RES.split('x',maxsplit=1)[0]}x{int(WINDOW_RES.split('x')[1])+42}"
+                )
+                return
+            try:
+                param4 = float(self.inp_maxy.get_entry())
+            except (TypeError, ValueError):
+                ctk_entry_warning(self.inp_maxy.entry)
+                self.lbl_inf.configure(
+                    text=f"Warning: \"{self.inp_maxy.get_entry()}\" must be int/float"
+                )
+                self.lbl_inf.grid(row=5,column=0,padx=10,pady=(0,10),sticky="nesw",columnspan=3)
+                self.geometry(
+                    f"{WINDOW_RES.split('x',maxsplit=1)[0]}x{int(WINDOW_RES.split('x')[1])+42}"
+                )
+                return
+            try:
+                param5 = int(self.inp_crn.get_entry())
+            except (TypeError, ValueError):
+                ctk_entry_warning(self.inp_crn.entry)
+                self.lbl_inf.configure(
+                    text=f"Warning: \"{self.inp_crn.get_entry()}\" must be int"
+                )
+                self.lbl_inf.grid(row=5,column=0,padx=10,pady=(0,10),sticky="nesw",columnspan=3)
+                self.geometry(
+                    f"{WINDOW_RES.split('x',maxsplit=1)[0]}x{int(WINDOW_RES.split('x')[1])+42}"
+                )
+                return
+            try:
+                param6 = float(self.inp_rs0.get_entry())
+            except (TypeError, ValueError):
+                ctk_entry_warning(self.inp_rs0.entry)
+                self.lbl_inf.configure(
+                    text=f"Warning: \"{self.inp_rs0.get_entry()}\" must be int/float"
+                )
+                self.lbl_inf.grid(row=5,column=0,padx=10,pady=(0,10),sticky="nesw",columnspan=3)
+                self.geometry(
+                    f"{WINDOW_RES.split('x',maxsplit=1)[0]}x{int(WINDOW_RES.split('x')[1])+42}"
+                )
+                return
+            try:
+                param8 = float(self.inp_rz0.get_entry())
+            except (TypeError, ValueError):
+                ctk_entry_warning(self.inp_rz0.entry)
+                self.lbl_inf.configure(
+                    text=f"Warning: \"{self.inp_rz0.get_entry()}\" must be int/float"
+                )
+                self.lbl_inf.grid(row=5,column=0,padx=10,pady=(0,10),sticky="nesw",columnspan=3)
+                self.geometry(
+                    f"{WINDOW_RES.split('x',maxsplit=1)[0]}x{int(WINDOW_RES.split('x')[1])+42}"
+                )
+                return
+            self.lbl_inf.grid_forget()
+            self.geometry(WINDOW_RES)
+            # pack variables for export
+            data = PARAMS_VER
+            data += f'\nmin_x: {param1}'
+            data += f'\nmax_x: {param2}'
+            data += f'\nmin_y: {param3}'
+            data += f'\nmax_y: {param4}'
+            data += f'\ncorner: {param5}'
+            data += f'\nscan_res: {param6}'
+            rtn = scheme_export_packed(
+                scheme_create_global(param1, param2, param3, param4, param5, param6),
+                self.ent_pth.get(), param8, save, param6, data
+            )
+            # return packed variables
+            return rtn
+        # if square subgroups are used
+        if self.tab_ent.get() == PARAMS_TAB[1]:
+            # check for input types
+            try:
+                param1 = float(self.inp_ctrx.get_entry())
+            except (TypeError, ValueError):
+                ctk_entry_warning(self.inp_ctrx.entry)
+                self.lbl_inf.configure(
+                    text=f"Warning: \"{self.inp_ctrx.get_entry()}\" must be int/float"
+                )
+                self.lbl_inf.grid(row=5,column=0,padx=10,pady=(0,10),sticky="nesw",columnspan=3)
+                self.geometry(
+                    f"{WINDOW_RES.split('x',maxsplit=1)[0]}x{int(WINDOW_RES.split('x')[1])+42}"
+                )
+                return
+            try:
+                param2 = float(self.inp_ctry.get_entry())
+            except (TypeError, ValueError):
+                ctk_entry_warning(self.inp_ctry.entry)
+                self.lbl_inf.configure(
+                    text=f"Warning: \"{self.inp_ctry.get_entry()}\" must be int/float"
+                )
+                self.lbl_inf.grid(row=5,column=0,padx=10,pady=(0,10),sticky="nesw",columnspan=3)
+                self.geometry(
+                    f"{WINDOW_RES.split('x',maxsplit=1)[0]}x{int(WINDOW_RES.split('x')[1])+42}"
+                )
+                return
+            try:
+                param3 = int(self.inp_dim.get_entry())
+            except (TypeError, ValueError):
+                ctk_entry_warning(self.inp_dim.entry)
+                self.lbl_inf.configure(
+                    text=f"Warning: \"{self.inp_dim.get_entry()}\" must be int"
+                )
+                self.lbl_inf.grid(row=5,column=0,padx=10,pady=(0,10),sticky="nesw",columnspan=3)
+                self.geometry(
+                    f"{WINDOW_RES.split('x',maxsplit=1)[0]}x{int(WINDOW_RES.split('x')[1])+42}"
+                )
+                return
+            try:
+                param4 = float(self.inp_rs1.get_entry())
+            except (TypeError, ValueError):
+                ctk_entry_warning(self.inp_rs1.entry)
+                self.lbl_inf.configure(
+                    text=f"Warning: \"{self.inp_dim.get_entry()}\" must be int/float"
+                )
+                self.lbl_inf.grid(row=5,column=0,padx=10,pady=(0,10),sticky="nesw",columnspan=3)
+                self.geometry(
+                    f"{WINDOW_RES.split('x',maxsplit=1)[0]}x{int(WINDOW_RES.split('x')[1])+42}"
+                )
+                return
+            try:
+                param6 = float(self.inp_rz1.get_entry())
+            except (TypeError, ValueError):
+                ctk_entry_warning(self.inp_rz1.entry)
+                self.lbl_inf.configure(
+                    text=f"Warning: \"{self.inp_rz1.get_entry()}\" must be int/float"
+                )
+                self.lbl_inf.grid(row=5,column=0,padx=10,pady=(0,10),sticky="nesw",columnspan=3)
+                self.geometry(
+                    f"{WINDOW_RES.split('x',maxsplit=1)[0]}x{int(WINDOW_RES.split('x')[1])+42}"
+                )
+                return
+            try:
+                param8 = float(self.inp_rs1.get_entry())
+            except (TypeError, ValueError):
+                ctk_entry_warning(self.inp_rs1.entry)
+                self.lbl_inf.configure(
+                    text=f"Warning: \"{self.inp_rs1.get_entry()}\" must be int/float"
+                )
+                self.lbl_inf.grid(row=5,column=0,padx=10,pady=(0,10),sticky="nesw",columnspan=3)
+                self.geometry(
+                    f"{WINDOW_RES.split('x',maxsplit=1)[0]}x{int(WINDOW_RES.split('x')[1])+42}"
+                )
+                return
+            self.lbl_inf.grid_forget()
+            self.geometry(WINDOW_RES)
+            # pack variables for export
+            data = PARAMS_VER
+            data += f'\ncenter_x: {param1}'
+            data += f'\ncenter_y: {param2}'
+            data += f'\nset_size: {param3}'
+            data += f'\nscan_res: {param4}'
+            rtn = scheme_export_packed(
+                scheme_create_subgrp(param1, param2, param3, param4),
+                self.ent_pth.get(), param6, save, param8, data
+            )
+            # return packed variables
+            return rtn
     # ---------------------------------------------------------------------------------------------
     def app_exp(self):
         """
         Function: commence the export of collected user inputs.
         """
         # save return values
-        self.rtn = self.app_prv(save=True)
-        # save planned xy coordinates
-        if self.rtn is not None:
-            planned_coordinates, multichannel_image, _ = self.rtn
+        rtn = self.app_prv(save=True)
+        if rtn is not None:
+            self.rtn = rtn
+            # save planned xy coordinates
+            planned_coordinates, multichannel_image, _= self.rtn
             file_path = os.path.join(os.path.dirname(multichannel_image), PARAMS_PLN)
             column_names = ["x", "y"]
             df = pd.DataFrame(planned_coordinates, columns=column_names)
@@ -312,14 +504,15 @@ class Entry(customtkinter.CTkFrame):
         return self.entry.get()
 
 
-# ====================================== scheme construction ======================================
+# ===================================== independent functions =====================================
 
 def scheme_export_packed(
         l: list,                 # xy coordinates for the imaging fields
         p: str,                  # file save path for the exported image
         z: float,                # recommended z value from user entries
         s: bool,                 # preview if false, save & exit if true
-        d: float                 # user scan size (as recorded in entry)
+        d: float,                # user scan size (as recorded in entry)
+        y: any = None            # text line for logging export variable
 ):
     """
     ### Return a 2d list of xy pairs, an image save path string, and a recommended z value.
@@ -329,6 +522,7 @@ def scheme_export_packed(
     `z` : recommended z value from user entries.
     `s` : preview if false, save & exit if true.
     `d` : user scan size (as recorded in entry).
+    `y` : text line for logging export variable.
     """
     # check if the given path already exists, change the save path if necessary
     # if the duplicated folder is empty, duplicated is set to false (even if name duplicates)
@@ -355,6 +549,9 @@ def scheme_export_packed(
             # create file for storing recorded xyz values
             df = pd.DataFrame({'x':[], 'y':[], 'z':[]})
             df.to_csv(os.path.join(p, PARAMS_CRD))
+            # export key variables when needed
+            with open(os.path.join(p, "mercury_01_log.txt"), 'w', encoding="utf-8") as file:
+                file.write(y)
         except FileExistsError:
             print(f"Warning: overwriting file(s) at {p}.")
     # for previewing
@@ -552,7 +749,6 @@ def pyplot_create_region(
         d = False,      # flip image on N-S direction if True       bool
         r = 0,          # counter-clockwise rotation of image       int
         t = 0,          # counter-clockwise rotation of texts       int
-        z = None        # enforced image dimension (in pixel)       None / list
 ):
     """
     ### Store a rectangle with width = w and height = h at (x,y), marked with i.
@@ -575,60 +771,55 @@ def pyplot_create_region(
     `d` : flip image on N-S direction if True. Default = `False`.
     `r` : counter-clockwise rotation of image. Default = `0`.
     `t` : counter-clockwise rotation of texts. Default = `0`.
-    `z` : enforced image dimension (in pixel). Default = `None`.
     """
-    # declare two lists to store corner coordinates
-    corner_x = []
-    corner_y = []
-    # bottom left (start)
-    corner_x.append(x - 0.5*w)
-    corner_y.append(y - 0.5*h)
-    # top left
-    corner_x.append(x - 0.5*w)
-    corner_y.append(y + 0.5*h)
-    # top right
-    corner_x.append(x + 0.5*w)
-    corner_y.append(y + 0.5*h)
-    # bottom right
-    corner_x.append(x + 0.5*w)
-    corner_y.append(y - 0.5*h)
-    # bottom left (finish)
-    corner_x.append(x - 0.5*w)
-    corner_y.append(y - 0.5*h)
-    # plot i as label
+    # precompute half sizes
+    hw = 0.5 * w
+    hh = 0.5 * h
+    # rectangle corners
+    corner_x = (
+        x - hw,
+        x - hw,
+        x + hw,
+        x + hw,
+        x - hw,
+    )
+    corner_y = (
+        y - hh,
+        y + hh,
+        y + hh,
+        y - hh,
+        y - hh,
+    )
+    # plot center marker + text
     plt.plot(x, y, 'o', color=c, alpha=a)
     plt.text(x, y, i, ha=f, va=v, alpha=g, rotation=t)
-    # plot j as image and rectX - rectY as lines
+    ax = plt.gca()
+    # image handling
     if j != "":
-        # open image with PIL
-        img = Image.open(j)
-        # flip or rotate the image if needed
-        if b is True:
-            img = img.transpose(method=Image.Transpose.FLIP_LEFT_RIGHT)
-        if d is True:
-            img = img.transpose(method=Image.Transpose.FLIP_TOP_BOTTOM)
-        if r != 0:
+        # accept either path or PIL.Image
+        if isinstance(j, Image.Image):
+            img = j
+        else:
+            img = Image.open(j)
+        # apply transforms only if requested
+        if b:
+            img = img.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        if d:
+            img = img.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+        if r:
             img = img.rotate(r)
-        # adjust image size if necessary (to compress image size)
-        if z is not None:
-            try:
-                img.resize(z)
-            except ValueError:
-                print(f"Warning: image resizing unable to resolve value {z}, image not resized.")
-        # store img, stretch its dimension to fit the current FOV
-        ax = plt.gca()
+        # convert once to array (imshow expects array-like)
+        img_arr = np.asarray(img)
+        # invert images if needed (do not change)
         ax.imshow(
-            np.fliplr(np.flipud(img)),
-            extent = (x+0.5*w, x-0.5*w, y+0.5*h, y-0.5*h),
-            alpha = a
+            np.fliplr(np.flipud(img_arr)),
+            extent=(x + hw, x - hw, y + hh, y - hh),
+            alpha=a
         )
-        # invert the axes back as imshow will invert x and y axis
         ax.invert_xaxis()
         ax.invert_yaxis()
-        # graph rectX - recty with linestyle ':'
         plt.plot(corner_x, corner_y, ':', color=e, alpha=a)
     else:
-        # graph rectX - recty with linestyle '-'
         plt.plot(corner_x, corner_y, '-', color=e, alpha=a)
 
 
@@ -703,13 +894,15 @@ def csvset_modify_concat(
 def open_file_dialog(
         init_title = "Select a file",
         init_dir = "/",
-        init_types = (("All files", "*.*"))
+        init_types = None
     ):
     """
     Function: open a file dialog using tkinter, return selected path.
 
     Note: setting `init_types` to False enables askdirectory().
     """
+    if init_types is None:
+        init_types = [("All files", "*.*")]
     if init_types is not False:
         # open file dialog and get the selected file path
         file_path = filedialog.askopenfilename(
@@ -724,6 +917,18 @@ def open_file_dialog(
             initialdir = init_dir
         )
     return file_path.replace("/", "\\")
+
+
+def ctk_entry_warning(entry: customtkinter.CTkEntry, color="brown", duration=50):
+    """
+    Function: briefly set designated ctk entry's foreground to a specific color.
+    """
+    # get original color
+    original_color = entry.cget("fg_color")
+    # set entry foreground color
+    entry.configure(fg_color=color)
+    # set entry foreground color to original
+    entry.after(duration, lambda: entry.configure(fg_color=original_color))
 
 
 # ========================================= main function =========================================
@@ -743,8 +948,14 @@ def mercury_01(
     app = App(sample_x, sample_y, sample_z)
     app.resizable(False, False)
     app.protocol("WM_DELETE_WINDOW", app.on_closing)
+    app.attributes("-topmost", True)
+    app.after_idle(app.attributes, "-topmost", False)
+    app.after(10, app.focus)
     app.mainloop()
     try:
         return app.rtn
     except AttributeError:
         return ([],'',0.0)
+
+if __name__ == '__main__':
+    print(mercury_01())
