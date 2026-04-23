@@ -1,5 +1,5 @@
 """
-Mercury 06: single cleave procedures, project version 1.22B (with python 3.9).
+Mercury 06: single cleave procedures, project version 1.24 (with python 3.9).
 """
 
 import os
