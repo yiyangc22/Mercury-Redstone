@@ -15,6 +15,7 @@ but only if it has installed Cellpose (and Conda env from the yaml file) correct
 # pylint: disable=missing-function-docstring
 
 import os
+import time
 import queue
 import threading
 from datetime import datetime
@@ -29,7 +30,7 @@ START_FOLDER = os.path.join(os.path.expanduser("~"), "Box")
 START_INTERV = 2
 
 
-# ── Theme ─────────────────────────────────────────────────────────────────────
+# ── Theme ────────────────────────────────────────────────────────────────────────────────────────
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
@@ -48,7 +49,7 @@ MONO_FONT    = ("Consolas", 12)
 LABEL_FONT   = ("Consolas", 12, "bold")
 
 
-# ── Watcher logic ─────────────────────────────────────────────────────────────
+# ── Watcher logic ────────────────────────────────────────────────────────────────────────────────
 def get_files(folder: str, extension: str) -> dict:
     ext = extension.strip().lower()
     result = {}
@@ -63,7 +64,23 @@ def get_files(folder: str, extension: str) -> dict:
     return result
 
 
-# ── App ───────────────────────────────────────────────────────────────────────
+# ── File-ready guard ─────────────────────────────────────────────────────────────────────────────
+def wait_until_file_ready(filepath: str, timeout: float = 60.0, poll: float = 1.0) -> bool:
+    """
+    Block until the file can be opened exclusively (i.e. the writer has closed it).
+    Returns True when ready, False if `timeout` seconds elapse without success.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            with open(filepath, "rb"):
+                return True
+        except (PermissionError, OSError):
+            time.sleep(poll)
+    return False
+
+
+# ── App ──────────────────────────────────────────────────────────────────────────────────────────
 class FolderWatcherApp(ctk.CTk):
     def __init__(self):
         super().__init__()
@@ -77,20 +94,24 @@ class FolderWatcherApp(ctk.CTk):
         self._stop_event  = threading.Event()
         self._known       = {}
 
-        # Processing queue + counter for active jobs
-        self._proc_queue      = queue.Queue()
-        self._active_jobs     = 0          # guarded by _jobs_lock
-        self._jobs_lock       = threading.Lock()
+        # GUI update queue (log lines, status refreshes) — drained on the main thread
+        self._proc_queue  = queue.Queue()
+
+        # File-processing pipeline: watcher enqueues paths, worker pool consumes them
+        self._file_queue  = queue.Queue()   # unbounded; holds filepaths waiting to process
+        self._workers     = []              # list of active worker Thread objects
+        self._active_jobs = 0              # number of files currently being processed
+        self._jobs_lock   = threading.Lock()
 
         self._build_ui()
         self._drain_queue()   # start the tkinter-safe log-drain loop
 
-    # ── UI Construction ───────────────────────────────────────────────────────
+    # ── UI Construction ──────────────────────────────────────────────────────────────────────────
     def _build_ui(self):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(2, weight=1)   # log panel expands
 
-        # ── Header ────────────────────────────────────────────────────────────
+        # ── Header ───────────────────────────────────────────────────────────────────────────────
         header = ctk.CTkFrame(self, fg_color=PANEL_BG, corner_radius=0, height=56)
         header.grid(row=0, column=0, sticky="ew")
         header.grid_propagate(False)
@@ -110,7 +131,7 @@ class FolderWatcherApp(ctk.CTk):
         )
         self._status_dot.grid(row=0, column=1, padx=20, pady=14, sticky="e")
 
-        # ── Config panel ──────────────────────────────────────────────────────
+        # ── Config panel ─────────────────────────────────────────────────────────────────────────
         config = ctk.CTkFrame(self, fg_color=PANEL_BG, corner_radius=12)
         config.grid(row=1, column=0, padx=14, pady=(10, 0), sticky="ew")
         config.grid_columnconfigure(1, weight=1)
@@ -170,7 +191,7 @@ class FolderWatcherApp(ctk.CTk):
         # — Compact parameter row (row 6) —
         prow = ctk.CTkFrame(config, fg_color="transparent")
         prow.grid(row=6, column=0, columnspan=3, padx=16, pady=(4, 10), sticky="ew")
-        for i in range(4):
+        for i in range(5):
             prow.grid_columnconfigure(i, weight=1)
 
         def param_cell(parent, col, label, widget_factory):
@@ -204,9 +225,17 @@ class FolderWatcherApp(ctk.CTk):
                                           border_color=BORDER, text_color=TEXT_MAIN,
                                           height=30))
 
+        # Max workers
+        self._workers_var = ctk.StringVar(value="1")
+        param_cell(prow, 3, "MAX WORKERS",
+                   lambda p: ctk.CTkEntry(p, textvariable=self._workers_var,
+                                          font=MONO_FONT, fg_color=CARD_BG,
+                                          border_color=BORDER, text_color=TEXT_MAIN,
+                                          height=30))
+
         # Checkboxes column
         chk_frame = ctk.CTkFrame(prow, fg_color="transparent")
-        chk_frame.grid(row=0, column=3, rowspan=2, sticky="nsew")
+        chk_frame.grid(row=0, column=4, rowspan=2, sticky="nsew")
         chk_frame.grid_rowconfigure(0, weight=0)
         chk_frame.grid_rowconfigure(1, weight=0)
 
@@ -223,7 +252,7 @@ class FolderWatcherApp(ctk.CTk):
                         corner_radius=6,
         ).grid(row=1, column=0, sticky="w")
 
-        # ── Log panel ─────────────────────────────────────────────────────────
+        # ── Log panel ────────────────────────────────────────────────────────────────────────────
         log_outer = ctk.CTkFrame(self, fg_color=PANEL_BG, corner_radius=12)
         log_outer.grid(row=2, column=0, padx=14, pady=10, sticky="nsew")
         log_outer.grid_rowconfigure(1, weight=1)
@@ -263,7 +292,7 @@ class FolderWatcherApp(ctk.CTk):
         self._log_box.tag_config("normal",  foreground=TEXT_MAIN)
         self._log_box.grid(row=1, column=0, padx=14, pady=(0, 14), sticky="nsew")
 
-        # ── Start / Stop button ───────────────────────────────────────────────
+        # ── Start / Stop button ──────────────────────────────────────────────────────────────────
         self._toggle_btn = ctk.CTkButton(
             self,
             text=">  START WATCHING",
@@ -276,7 +305,7 @@ class FolderWatcherApp(ctk.CTk):
         )
         self._toggle_btn.grid(row=3, column=0, padx=14, pady=(0, 14), sticky="ew")
 
-    # ── Folder browsing ───────────────────────────────────────────────────────
+    # ── Folder browsing ──────────────────────────────────────────────────────────────────────────
     def _browse_watch(self):
         path = filedialog.askdirectory(initialdir=self._folder_var.get())
         if path:
@@ -300,7 +329,7 @@ class FolderWatcherApp(ctk.CTk):
         if filepath:
             self._cpmodel_var.set(filepath)
 
-    # ── Watch control ─────────────────────────────────────────────────────────
+    # ── Watch control ────────────────────────────────────────────────────────────────────────────
     def _toggle_watching(self):
         if self._watching:
             self._stop_watching()
@@ -311,6 +340,7 @@ class FolderWatcherApp(ctk.CTk):
         folder       = self._folder_var.get().strip()
         ext          = self._ext_var.get().strip()
         interval_str = self._interval_var.get().strip()
+        workers_str  = self._workers_var.get().strip()
 
         if not os.path.isdir(folder):
             self._log("!  Invalid watch folder path.", color="danger")
@@ -329,9 +359,31 @@ class FolderWatcherApp(ctk.CTk):
             self._log("!  Interval must be a positive number.", color="danger")
             return
 
+        try:
+            n_workers = int(workers_str)
+            if n_workers < 1:
+                raise ValueError
+        except ValueError:
+            self._log("!  Max workers must be a positive integer.", color="danger")
+            return
+
         self._watching = True
         self._stop_event.clear()
         self._known = get_files(folder, ext)
+
+        # Clear any leftover items from a previous run
+        while not self._file_queue.empty():
+            try:
+                self._file_queue.get_nowait()
+            except queue.Empty:
+                break
+
+        # Launch the worker pool — each worker blocks on _file_queue until a sentinel
+        self._workers = []
+        for _ in range(n_workers):
+            t = threading.Thread(target=self._worker_loop, daemon=True)
+            t.start()
+            self._workers.append(t)
 
         self._toggle_btn.configure(
             text="■  STOP WATCHING",
@@ -340,11 +392,11 @@ class FolderWatcherApp(ctk.CTk):
         )
         self._status_dot.configure(text="● WATCHING", text_color=SUCCESS)
 
-        label = f"*{ext}" if ext else "all files"
+        label     = f"*{ext}" if ext else "all files"
         out_label = outfolder if outfolder else "(same as input)"
         self._log(f">  Watching '{folder}'")
         self._log(f"   Output  → {out_label}")
-        self._log(f"   Interval: {interval}s  |  Filter: {label}")
+        self._log(f"   Interval: {interval}s  |  Filter: {label}  |  Workers: {n_workers}")
         self._log(f"   Snapshot: {len(self._known)} existing file(s) noted.")
 
         self._watch_thread = threading.Thread(
@@ -357,6 +409,11 @@ class FolderWatcherApp(ctk.CTk):
     def _stop_watching(self):
         self._stop_event.set()
         self._watching = False
+
+        # Send one sentinel (None) per worker so every thread exits its blocking get()
+        for _ in self._workers:
+            self._file_queue.put(None)
+
         self._toggle_btn.configure(
             text=">  START WATCHING",
             fg_color=ACCENT,
@@ -366,30 +423,31 @@ class FolderWatcherApp(ctk.CTk):
         self._log("■  Stopped watching.  (any active processing will finish normally)",
                   color="warning")
 
-    # ── Watch loop (watcher thread) ───────────────────────────────────────────
+    # ── Watch loop (watcher thread) ──────────────────────────────────────────────────────────────
     def _watch_loop(self, folder, ext, interval):
         while not self._stop_event.wait(timeout=interval):
-            current  = get_files(folder, ext)
+            current   = get_files(folder, ext)
             new_files = set(current) - set(self._known)
             if new_files:
                 for fp in sorted(new_files):
                     self._log_threadsafe(
                         f"   New file detected: {os.path.basename(fp)}", "success")
-                    self._dispatch_processing(fp)
+                    self._file_queue.put(fp)   # hand off to the worker pool
             else:
                 self._proc_queue.put(("log_update", "   No new image detected.", "normal"))
             self._known = current
 
-    # ── Processing dispatch ───────────────────────────────────────────────────
-    def _dispatch_processing(self, filepath: str):
-        """Spin up a worker thread for each new file."""
-        t = threading.Thread(
-            target=self._process_file,
-            args=(filepath,),
-            daemon=True,   # daemon = won't block interpreter exit,
-                           # but _stop_watching lets the thread finish naturally
-        )
-        t.start()
+    # ── Worker pool ──────────────────────────────────────────────────────────────────────────────
+    def _worker_loop(self):
+        """
+        Runs on a persistent worker thread.
+        Blocks on _file_queue; exits cleanly when it receives a None sentinel.
+        """
+        while True:
+            filepath = self._file_queue.get()
+            if filepath is None:        # sentinel sent by _stop_watching
+                break
+            self._process_file(filepath)
 
     def _process_file(self, filepath: str):
         """Runs on a worker thread. Calls create_cpmask_single and logs results."""
@@ -397,8 +455,18 @@ class FolderWatcherApp(ctk.CTk):
 
         with self._jobs_lock:
             self._active_jobs += 1
-        self._log_threadsafe(f"   Processing started: {basename}", "normal")
+        self._log_threadsafe(f"   Waiting for file to be ready: {basename}")
         self._update_status_threadsafe()
+
+        if not wait_until_file_ready(filepath):
+            self._log_threadsafe(
+                f"!  Timed out waiting for file to be ready: {basename}", "danger")
+            with self._jobs_lock:
+                self._active_jobs -= 1
+            self._update_status_threadsafe()
+            return
+
+        self._log_threadsafe(f"   Processing started: {basename}", "normal")
 
         # Collect parameters (safe to read StringVars from another thread
         # since we're only reading, not writing)
@@ -436,7 +504,7 @@ class FolderWatcherApp(ctk.CTk):
                 self._active_jobs -= 1
             self._update_status_threadsafe()
 
-    # ── Thread-safe helpers ───────────────────────────────────────────────────
+    # ── Thread-safe helpers ──────────────────────────────────────────────────────────────────────
     def _log_threadsafe(self, msg: str, color: str = "normal"):
         """Queue a log message from any thread; drained by _drain_queue."""
         self._proc_queue.put(("log", msg, color))
@@ -479,7 +547,7 @@ class FolderWatcherApp(ctk.CTk):
             else:
                 self._status_dot.configure(text="● IDLE", text_color=TEXT_MUTED)
 
-    # ── Log helpers ───────────────────────────────────────────────────────────
+    # ── Log helpers ──────────────────────────────────────────────────────────────────────────────
     def _log(self, msg: str, color: str = "normal"):
         prefix = datetime.now().strftime("%H:%M:%S")
         line = f"[{prefix}]  {msg}\n"
@@ -511,7 +579,7 @@ class FolderWatcherApp(ctk.CTk):
         self._log_box.configure(state="disabled")
 
 
-# ── Cellpose function ─────────────────────────────────────────────────────────
+# ── Cellpose function ────────────────────────────────────────────────────────────────────────────
 def create_cpmask_single(
         original: str,                  # file name with path to the original image
         savepath: str = None,           # full path to output folder of mask images
@@ -570,7 +638,7 @@ def create_cpmask_single(
                 os.path.join(savepath, os.path.splitext(tail)[0] + '_cp_array.npz'), masks=masks)
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
+# ── Entry point ──────────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     app = FolderWatcherApp()
     app.attributes("-topmost", True)
