@@ -13,7 +13,7 @@ import customtkinter
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from PIL import Image, ImageOps
+from PIL import Image #, ImageOps
 from matplotlib.collections import LineCollection
 
 from mercury_00 import load_mask_preset
@@ -257,7 +257,7 @@ class App(customtkinter.CTk):
             for i, xy_pair in enumerate(coord_multi):
                 # first, find the corresponding image
                 img_path = os.path.join(os.path.join(self.pth_folder, PARAMS_MSK), image_files[i])
-                img = ImageOps.invert(Image.open(img_path))
+                img = invert_p_mode_image(Image.open(img_path))
                 if len(image_multi) != 0:
                     mlt_path=os.path.join(os.path.join(self.pth_folder,PARAMS_MCI),image_multi[i])
                     mlt = Image.open(mlt_path).resize(img.size)
@@ -617,7 +617,7 @@ class App(customtkinter.CTk):
             for i, xy_pair in enumerate(coord_multi):
                 # first, find the corresponding image
                 img_path = os.path.join(os.path.join(self.pth_folder, PARAMS_MSK), image_files[i])
-                img = ImageOps.invert(Image.open(img_path))
+                img = invert_p_mode_image(Image.open(img_path))
                 if len(image_multi) != 0:
                     mlt_path=os.path.join(os.path.join(self.pth_folder,PARAMS_MCI),image_multi[i])
                     mlt = Image.open(mlt_path).resize(img.size)
@@ -1420,6 +1420,33 @@ def preview_laser_cell(exp_folder, mask_size:int, laser_w:int, laser_h:int, num_
     plt.show()
 
 
+def invert_p_mode_image(image: Image.Image) -> Image.Image:
+    """
+    Invert a P mode (palette) PNG image.
+
+    Converts to RGB before inverting to ensure pixel values are treated as
+    actual colors rather than palette indices, then converts back to P mode
+    using the original palette to avoid quantization loss.
+
+    Args:
+        image: A PIL Image in P mode.
+
+    Returns:
+        A PIL Image in P mode with inverted colors, using the original palette.
+
+    Raises:
+        ValueError: If the input image is not in P mode.
+    """
+    if image.mode != "P":
+        raise ValueError(f"Expected P mode image, got {image.mode!r}")
+    # invert the palette entries directly (lossless)
+    palette = image.getpalette()  # list of [R, G, B, R, G, B, ...]
+    inverted_palette = [255 - v for v in palette]
+    output = image.copy()
+    output.putpalette(inverted_palette)
+    return output
+
+
 # ========================================= main function =========================================
 
 def mercury_02():
@@ -1441,6 +1468,3 @@ def mercury_02():
     except (AttributeError, UserWarning, RuntimeError) as e:
         print(f"Warning: cannot initialize mainloop: {e}")
         return None
-
-if __name__ == '__main__':
-    print(mercury_02())
