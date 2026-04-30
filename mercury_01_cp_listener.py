@@ -28,6 +28,7 @@ from PIL import Image, ImageChops
 
 START_FOLDER = os.path.join(os.path.expanduser("~"), "Box")
 START_INTERV = 2
+ROTATE_MASKS = False
 
 
 # ── Theme ────────────────────────────────────────────────────────────────────────────────────────
@@ -82,6 +83,10 @@ def wait_until_file_ready(filepath: str, timeout: float = 60.0, poll: float = 1.
 
 # ── App ──────────────────────────────────────────────────────────────────────────────────────────
 class FolderWatcherApp(ctk.CTk):
+    # Sentinel embedded in every line written by _log_update so the method can
+    # recognise its own previous output and overwrite it instead of appending.
+    _LOG_UPDATE_TAG = "\u200b[upd]"   # zero-width space + marker; invisible in the textbox
+
     def __init__(self):
         super().__init__()
         self.title("Mercury 01 - Extra")
@@ -342,13 +347,9 @@ class FolderWatcherApp(ctk.CTk):
         interval_str = self._interval_var.get().strip()
         workers_str  = self._workers_var.get().strip()
 
-        if not os.path.isdir(folder):
-            self._log("!  Invalid watch folder path.", color="danger")
-            return
-
-        outfolder = self._outfolder_var.get().strip()
-        if outfolder and not os.path.isdir(outfolder):
-            self._log("!  Invalid output folder path.", color="danger")
+        # Numeric fields are validated upfront — bad values are caught immediately
+        if not folder:
+            self._log("!  Watch folder path cannot be empty.", color="danger")
             return
 
         try:
@@ -367,9 +368,10 @@ class FolderWatcherApp(ctk.CTk):
             self._log("!  Max workers must be a positive integer.", color="danger")
             return
 
+        outfolder = self._outfolder_var.get().strip()
+
         self._watching = True
         self._stop_event.clear()
-        self._known = get_files(folder, ext)
 
         # Clear any leftover items from a previous run
         while not self._file_queue.empty():
@@ -390,18 +392,16 @@ class FolderWatcherApp(ctk.CTk):
             fg_color=DANGER,
             hover_color="#ff7070",
         )
-        self._status_dot.configure(text="● WATCHING", text_color=SUCCESS)
 
         label     = f"*{ext}" if ext else "all files"
         out_label = outfolder if outfolder else "(same as input)"
-        self._log(f">  Watching '{folder}'")
+        self._log(f">  Armed — watch folder : '{folder}'")
         self._log(f"   Output  → {out_label}")
         self._log(f"   Interval: {interval}s  |  Filter: {label}  |  Workers: {n_workers}")
-        self._log(f"   Snapshot: {len(self._known)} existing file(s) noted.")
 
         self._watch_thread = threading.Thread(
             target=self._watch_loop,
-            args=(folder, ext, interval),
+            args=(folder, outfolder, ext, interval),
             daemon=True,
         )
         self._watch_thread.start()
@@ -424,7 +424,47 @@ class FolderWatcherApp(ctk.CTk):
                   color="warning")
 
     # ── Watch loop (watcher thread) ──────────────────────────────────────────────────────────────
-    def _watch_loop(self, folder, ext, interval):
+    def _watch_loop(self, folder, outfolder, ext, interval):
+        # ── Phase 1: wait until both required folders exist ──────────────────────────────────────
+        folders_ready = os.path.isdir(folder) and (not outfolder or os.path.isdir(outfolder))
+
+        if not folders_ready:
+            self._proc_queue.put(("status_text", "● WAITING FOR FOLDERS", WARNING))
+            self._log_threadsafe("?  Folder(s) not found — waiting for them to be created...",
+                                 "warning")
+
+            while not self._stop_event.is_set():
+                if self._stop_event.wait(timeout=interval):
+                    return                  # stopped while waiting
+                folder_ok  = os.path.isdir(folder)
+                output_ok  = (not outfolder) or os.path.isdir(outfolder)
+                if folder_ok and output_ok:
+                    break
+                # Report which folders are still missing (update in-place each poll)
+                missing = []
+                if not folder_ok:
+                    missing.append(f"watch ('{os.path.basename(folder)}')")
+                if not output_ok:
+                    missing.append(f"output ('{os.path.basename(outfolder)}')")
+                self._proc_queue.put((
+                    "log_update",
+                    f"?  Still waiting for: {', '.join(missing)}",
+                    "warning",
+                ))
+
+        # ── Phase 2: folders are ready — snapshot existing files and begin normal loop ──────────
+        self._known = get_files(folder, ext)
+        out_label   = outfolder if outfolder else "(same as input)"
+        self._log_threadsafe(f"   Folders ready.  Output → {out_label}", "normal")
+        self._log_threadsafe(f"   Snapshot: {len(self._known)} existing file(s) noted.")
+
+        # Queue any pre-existing files for processing right away
+        for fp in sorted(self._known):
+            self._log_threadsafe(f"   Queuing existing file: {os.path.basename(fp)}", "success")
+            self._file_queue.put(fp)
+
+        self._proc_queue.put(("status_text", "● WATCHING", SUCCESS))
+
         while not self._stop_event.wait(timeout=interval):
             current   = get_files(folder, ext)
             new_files = set(current) - set(self._known)
@@ -432,7 +472,7 @@ class FolderWatcherApp(ctk.CTk):
                 for fp in sorted(new_files):
                     self._log_threadsafe(
                         f"   New file detected: {os.path.basename(fp)}", "success")
-                    self._file_queue.put(fp)   # hand off to the worker pool
+                    self._file_queue.put(fp)
             else:
                 self._proc_queue.put(("log_update", "   No new image detected.", "normal"))
             self._known = current
@@ -491,6 +531,7 @@ class FolderWatcherApp(ctk.CTk):
                 save_png=True,
                 save_npz=save_npz,
                 reversal=False,
+                rotate_mask=ROTATE_MASKS,
             )
             self._log_threadsafe(
                 f"*  Processing complete: {basename}", "success")
@@ -527,6 +568,9 @@ class FolderWatcherApp(ctk.CTk):
                     self._log_update(item[1], color=item[2])
                 elif item[0] == "status":
                     self._refresh_status_dot()
+                elif item[0] == "status_text":
+                    # Direct status-dot override from the watcher thread (text, color)
+                    self._status_dot.configure(text=item[1], text_color=item[2])
         except queue.Empty:
             pass
         self.after(100, self._drain_queue)
@@ -558,18 +602,20 @@ class FolderWatcherApp(ctk.CTk):
         self._log_box.configure(state="disabled")
 
     def _log_update(self, msg: str, color: str = "normal"):
-        """Overwrite the last line if it is a 'no new image' line; otherwise append."""
-        prefix = datetime.now().strftime("%H:%M:%S")
-        new_line = f"[{prefix}]  {msg}\n"
-        tag = color if color in ("danger", "success", "warning") else "normal"
+        """
+        Overwrite the last log line in-place if it was itself written by _log_update
+        (recognised by the UPDATE_TAG sentinel embedded in the line); otherwise append
+        a new line as normal.  This keeps repetitive polling messages — folder-wait
+        and no-new-image — from flooding the log.
+        """
+        prefix   = datetime.now().strftime("%H:%M:%S")
+        new_line = f"[{prefix}]  {msg}{self._LOG_UPDATE_TAG}\n"
+        tag      = color if color in ("danger", "success", "warning") else "normal"
         self._log_box.configure(state="normal")
-        # Check whether the current last line is itself an update line
         last_line = self._log_box.get("end-2l", "end-1c")
-        if "   No new image detected." in last_line:
+        if self._LOG_UPDATE_TAG in last_line:
             self._log_box.delete("end-2l", "end-1c")
-            self._log_box.insert("end", new_line, tag)
-        else:
-            self._log_box.insert("end", new_line, tag)
+        self._log_box.insert("end", new_line, tag)
         self._log_box.see("end")
         self._log_box.configure(state="disabled")
 
@@ -589,7 +635,8 @@ def create_cpmask_single(
         diameter: int = 30,             # average pixel diameter for a typical cell
         channels: list = None,          # segmentation channel [cytoplasm, nucleus]
         save_png: bool = True,          # if a new cellpose png file would be saved
-        save_npz: bool = True           # if a cell masking npz file would be saved
+        save_npz: bool = True,          # if a cell masking npz file would be saved
+        rotate_mask: bool = True        # rotate the output mask 180° before saving
 ):
     """
     ### Construct and save mask for a multichannel image (as png or npz).
@@ -597,14 +644,15 @@ def create_cpmask_single(
     `original` : file name and path to the original images.
     ---------------------------------------------------------------------------
     #### Optional:
-    `savepath` : full path to output folder of mask images = *(same as input image)*
-    `savesize` : size of the output images [width, height] = *(same as input image)*.
-    `reversal` : reverse output image color if set to true = `False`.
-    `cp_model` : cellpose segmentation model (str or path) = `"cyto3"`.
-    `diameter` : average pixel diameter for a typical cell = `30`.
-    `channels` : segmentation channel [cytoplasm, nucleus] = `[0,0]`.
-    `save_png` : if a new cellpose png file would be saved = `True`.
-    `save_npz` : if a cell masking npz file would be saved = `True`.
+    `savepath`    : full path to output folder of mask images = *(same as input image)*
+    `savesize`    : size of the output images [width, height] = *(same as input image)*.
+    `reversal`    : reverse output image color if set to true = `False`.
+    `cp_model`    : cellpose segmentation model (str or path) = `"cyto3"`.
+    `diameter`    : average pixel diameter for a typical cell = `30`.
+    `channels`    : segmentation channel [cytoplasm, nucleus] = `[0,0]`.
+    `save_png`    : if a new cellpose png file would be saved = `True`.
+    `save_npz`    : if a cell masking npz file would be saved = `True`.
+    `rotate_mask` : rotate the output mask 180° before saving = `True`.
     """
     if cp_model.lower() == "none" or cp_model is None:
         return
@@ -624,6 +672,8 @@ def create_cpmask_single(
         msk = Image.fromarray(binary, mode="L")
         if reversal is False:
             msk = ImageChops.invert(msk)
+        if rotate_mask:
+            msk = msk.rotate(180)
         if savesize is not None:
             msk = msk.resize(savesize)
         if savepath is None:
