@@ -331,9 +331,24 @@ class ConfirmWindow(customtkinter.CTkToplevel):
 
 def update_mask(img_folder, num_round, area, rota, vert, hori, x, y, w, h):
     """
-    Function: update and stretch temp cleave mask based on round/area number.
-    return false if the update is unsuccessful.
+    Function: update temp cleave mask based on round/area number, and return the
+    stage coordinates (compensated for the laser-vs-camera FOV offset).
+    return [[],[],[]] if the update is unsuccessful.
+
+    Calibration (rota, vert, hori, x, y, w, h) describes the forward optics
+    that take a mask M -> camera image: rotate(rota) -> flip_v -> flip_h ->
+    resize_to(w, h) -> place_at(x, y) in a PRES x PRES camera frame. To make
+    the projected pattern match the cleave-map tile, we apply the inverse of
+    the rotation and flips here; the device handles the resize/translate.
+
+    Stage offset: mercury_02 stores stage (x_um, y_um) using camera-aligned
+    coordinates, but the laser FOV sits at (x, y, w, h) in camera pixels --
+    not at the camera center. We shift the returned stage coordinates by the
+    laser-vs-camera-center vector so the laser ends up where the cleave map
+    intended, instead of where the camera was looking.
     """
+    # camera FOV side length in micrometers (square FOV -- adjust for your scope)
+    CAM_FOV_UM = 366
     # check for valid input
     if num_round < 0 or area < 0:
         print(f"Warning: invalid round/area combination: round {num_round} area {area}.")
@@ -341,54 +356,42 @@ def update_mask(img_folder, num_round, area, rota, vert, hori, x, y, w, h):
         return [[],[],[]]
     # try constructing the mask
     try:
-        # access cleave center coordinates
+        # access cleave center coordinates and the cleave-map tile for this area
         exp_folder = os.path.dirname(img_folder)
         center_coord = pd.read_csv(os.path.join(exp_folder, PARAMS_MAP, f"Round {num_round}.csv"),
             keep_default_na = False, usecols=[1,2,3,4,5,6,7]).values.tolist()[area]
-        # access cleave mask area
         tgt_mask = Image.open(os.path.join(exp_folder, PARAMS_MAP, f"Round {num_round}.png"))
-        tgt_mask = tgt_mask.crop(center_coord[3:7])
-        # first create a [366, 366] empty mask
-        mod_mask = Image.new('P', [366,366], color = (255,255,255))
-        # then paste the [300, 300] cleave mask to the center
-        bg_width, bg_height = mod_mask.size
-        overlay_width, overlay_height = tgt_mask.size
-        x_center = round((bg_width - overlay_width) / 2)
-        y_center = round((bg_height - overlay_height) / 2)
-        mod_mask.paste(tgt_mask, (x_center, y_center))
-        # create new mask with size of multichannel image and 200 px margin
-        tmp_mask = Image.new('P', [PRES+200,PRES+200], color = (255,255,255))
-        # stretch the modified mask to the size of multichannel image
-        mod_mask = mod_mask.resize([PRES, PRES])
-        # paste modified mask onto the temporary mask (with 100 px margin)
-        tmp_mask.paste(mod_mask, (100,100))
-        # apply cropping, but from the perspective of bottom-right corner
-        mod_mask = tmp_mask.crop((
-            PRES + 100 - h - y,
-            PRES + 100 - w - x,
-            PRES + 100 - y,
-            PRES + 100 - x
-        ))
-        # mod_mask = tmp_mask.crop((
-        #     PRES + 100 - w - x,
-        #     PRES + 100 - h - y,
-        #     PRES + 100 - x,
-        #     PRES + 100 - y
-        # ))
-        # rotate and flip based on mask calibration preset
-        mod_mask = mod_mask.rotate(rota+180)
-        if vert:
-            mod_mask = mod_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+        tgt_mask = tgt_mask.crop(center_coord[3:7]).convert('L')
+        # fill the laser device's mask canvas with the tile (device will rescale to FOV)
+        tmp_mask = Image.open(os.path.join(exp_folder, PARAMS_TMP))
+        mod_mask = tgt_mask.resize(tmp_mask.size, resample=Image.NEAREST)
+        # pre-distort: invert (rotate -> flip_v -> flip_h) by applying inverses in reverse order
         if hori:
             mod_mask = mod_mask.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
-        # resize laser area to temp mask size
-        tmp_mask = Image.open(os.path.join(exp_folder, PARAMS_TMP))
-        mod_mask = mod_mask.resize(tmp_mask.size)
-        # save the modified image as the new temp mask
-        rtn_mask = mod_mask.convert('L')
-        rtn_mask = ImageOps.invert(rtn_mask)
+        if vert:
+            mod_mask = mod_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
+        if rota % 360:
+            mod_mask = mod_mask.rotate(-rota, expand=False, fillcolor=255)
+        # invert (cleave map: white = skip; laser device: white = fire) and save
+        rtn_mask = ImageOps.invert(mod_mask)
         rtn_mask.save(os.path.join(exp_folder, PARAMS_TMP), format='PNG')
-        return center_coord[0:3]
+        # --- stage coordinate compensation for laser-vs-camera FOV offset ---
+        # laser FOV center vs camera FOV center, in camera pixels:
+        offset_px_x = (x + w / 2) - PRES / 2
+        offset_px_y = (y + h / 2) - PRES / 2
+        # convert pixel offset to stage micrometers using camera scale.
+        # NOTE: stage Y axis is inverted relative to image Y axis (mercury_02
+        # builds rows with `int_start_y_um - row*laser_h_um`), so the stage
+        # offset Y component picks up an extra negative sign.
+        cam_um_per_px = CAM_FOV_UM / PRES
+        offset_um_x = offset_px_x * cam_um_per_px
+        offset_um_y = -offset_px_y * cam_um_per_px
+        # to fire the laser where the cleave map intended, move the stage
+        # opposite to the laser-vs-camera offset.
+        cx, cy, cz = center_coord[0:3]
+        cx -= offset_um_x
+        cy -= offset_um_y
+        return [cx, cy, cz]
     except FileNotFoundError as e:
         print(f"Warning: {e}")
         print(f"Warning: round {num_round} area {area} not executed.")
