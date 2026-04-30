@@ -369,6 +369,12 @@ def update_mask(img_folder, num_round, area, rota, vert, hori, x, y, w, h):
             PRES + 100 - y,
             PRES + 100 - x
         ))
+        # mod_mask = tmp_mask.crop((
+        #     PRES + 100 - w - x,
+        #     PRES + 100 - h - y,
+        #     PRES + 100 - x,
+        #     PRES + 100 - y
+        # ))
         # rotate and flip based on mask calibration preset
         mod_mask = mod_mask.rotate(rota+180)
         if vert:
@@ -465,6 +471,3 @@ def mercury_03():
         return app.rtn
     except AttributeError:
         return ([],'','',[],0.0,0,False,False,0.0,0.0,0.0,0.0)
-
-if __name__ == '__main__':
-    print(mercury_03())
