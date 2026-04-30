@@ -47,7 +47,7 @@ class Moa:
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on enable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self):
         super().__init__()
-        self.rtn = ('', '', '', [], PARAMS_SZE, 0.0)
+        self.rtn = ('', '', '', [], -1, 0.0)
 
 
 class App(customtkinter.CTk, Moa):
@@ -191,7 +191,7 @@ class App(customtkinter.CTk, Moa):
             mask_path = base + "_cleave" + ext
             mod_mask.save(mask_path)
             # change extension of mask image path to get laser image save path
-            save_path = base + ".tif"
+            save_path = base # + ".tif"
             # stage coordinates: compensate for laser-vs-camera FOV offset
             # (only when a preset is provided -- raw mode passes xyz through)
             cx = float(parameter[0])
@@ -246,4 +246,4 @@ def mercury_06(
     try:
         return app.rtn
     except AttributeError:
-        return ('', '', '', [], PARAMS_SZE, 0.0)
+        return ('', '', '', [], -1, 0.0)
