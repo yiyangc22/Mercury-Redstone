@@ -956,6 +956,3 @@ def mercury_01(
         return app.rtn
     except AttributeError:
         return ([],'',0.0)
-
-if __name__ == '__main__':
-    print(mercury_01())
