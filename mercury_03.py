@@ -12,7 +12,7 @@ import customtkinter
 from PIL import Image, ImageOps
 
 from mercury_00 import load_mask_preset
-from mercury_01 import ctk_entry_warning
+from mercury_01 import ctk_entry_warning, PARAMS_RES
 from mercury_02 import count_non_white_pixel, FileInput, InputRow, PopUpWindow, PRES
 
 # from params import PARAMS_DTP
@@ -275,14 +275,9 @@ class App(customtkinter.CTk, Moa):
             os.path.join(self.path_folder, "mercury_03_log.txt"), 'w', encoding="utf-8"
         ) as file:
             file.write(self.txt_log)
-        # prompt user to exit
-        self.pop_up.set_text(text="Finished! You may exit the program now.")
-        # show option to exit
-        self.pop_up = customtkinter.CTkButton(
-            master=self,
-            text="Exit and return to LabVIEW",
-            command=self.on_closing
-        )
+        # show exit message and exit
+        self.pop_up.set_text(text="Laser mapping complete, you will now continue in LabVIEW")
+        self.after(200, self.on_closing)
 
 
 class ConfirmWindow(customtkinter.CTkToplevel):
@@ -347,8 +342,6 @@ def update_mask(img_folder, num_round, area, rota, vert, hori, x, y, w, h):
     laser-vs-camera-center vector so the laser ends up where the cleave map
     intended, instead of where the camera was looking.
     """
-    # camera FOV side length in micrometers (square FOV -- adjust for your scope)
-    CAM_FOV_UM = 366
     # check for valid input
     if num_round < 0 or area < 0:
         print(f"Warning: invalid round/area combination: round {num_round} area {area}.")
@@ -362,9 +355,23 @@ def update_mask(img_folder, num_round, area, rota, vert, hori, x, y, w, h):
             keep_default_na = False, usecols=[1,2,3,4,5,6,7]).values.tolist()[area]
         tgt_mask = Image.open(os.path.join(exp_folder, PARAMS_MAP, f"Round {num_round}.png"))
         tgt_mask = tgt_mask.crop(center_coord[3:7]).convert('L')
+        # the global mask was stitched in mercury_02 from individual mask images
+        # that came from an inverted-microscope multichannel pipeline. mercury_02
+        # applied FLIP_LEFT_RIGHT + FLIP_TOP_BOTTOM (= 180 deg rotation) to each
+        # tile before pasting, so the global mask -- and the tile we just cropped
+        # from it -- is in real-space (sample-frame) orientation. The laser
+        # calibration in mercury_00 was performed against camera-frame images
+        # (i.e. what the inverted microscope shows), so we have to put the tile
+        # back into camera-frame before pre-distorting. Since the difference is
+        # exactly the inverted-microscope's 180 deg flip, undo it here. This is
+        # also why mercury_06 works without this step -- its input is already in
+        # camera-frame (the user supplies the mask directly without going
+        # through the multichannel-stitching pipeline).
+        tgt_mask = tgt_mask.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
+        tgt_mask = tgt_mask.transpose(Image.Transpose.FLIP_TOP_BOTTOM)
         # fill the laser device's mask canvas with the tile (device will rescale to FOV)
         tmp_mask = Image.open(os.path.join(exp_folder, PARAMS_TMP))
-        mod_mask = tgt_mask.resize(tmp_mask.size, resample=Image.NEAREST)
+        mod_mask = tgt_mask.resize(tmp_mask.size, resample=Image.Resampling.NEAREST)
         # pre-distort: invert (rotate -> flip_v -> flip_h) by applying inverses in reverse order
         if hori:
             mod_mask = mod_mask.transpose(Image.Transpose.FLIP_LEFT_RIGHT)
@@ -383,14 +390,27 @@ def update_mask(img_folder, num_round, area, rota, vert, hori, x, y, w, h):
         # NOTE: stage Y axis is inverted relative to image Y axis (mercury_02
         # builds rows with `int_start_y_um - row*laser_h_um`), so the stage
         # offset Y component picks up an extra negative sign.
-        cam_um_per_px = CAM_FOV_UM / PRES
+        cam_um_per_px = PARAMS_RES / PRES
         offset_um_x = offset_px_x * cam_um_per_px
         offset_um_y = -offset_px_y * cam_um_per_px
         # to fire the laser where the cleave map intended, move the stage
         # opposite to the laser-vs-camera offset.
         cx, cy, cz = center_coord[0:3]
-        cx -= offset_um_x
-        cy -= offset_um_y
+        cx += offset_um_x
+        cy += offset_um_y
+        # also persist the adjusted xyz back into Round {num_round}.csv so the
+        # user/downstream tools can see the actual stage position used per area.
+        # New columns x_adj, y_adj, z_adj are appended after the original
+        # x, y, z, w, n, e, s columns; the row is keyed by the area index.
+        csv_path = os.path.join(exp_folder, PARAMS_MAP, f"Round {num_round}.csv")
+        df_round = pd.read_csv(csv_path, index_col=0)
+        for col in ('x_adj', 'y_adj', 'z_adj'):
+            if col not in df_round.columns:
+                df_round[col] = float('nan')
+        df_round.loc[area, 'x_adj'] = cx
+        df_round.loc[area, 'y_adj'] = cy
+        df_round.loc[area, 'z_adj'] = cz
+        df_round.to_csv(csv_path, index=True)
         return [cx, cy, cz]
     except FileNotFoundError as e:
         print(f"Warning: {e}")
