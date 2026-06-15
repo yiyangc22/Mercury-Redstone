@@ -13,11 +13,10 @@ import customtkinter
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from PIL import Image #, ImageOps
+from PIL import Image, ImageOps
 from matplotlib.collections import LineCollection
 
 from mercury_00 import load_mask_preset
-from mercury_01 import PARAMS_RES as MRES
 from mercury_01 import pyplot_create_region, open_file_dialog, ctk_entry_warning
 
 from params import PARAMS_DTP
@@ -34,10 +33,16 @@ from params import PARAMS_BIT
 # from params import PARAMS_TMP
 from params import PARAMS_VER
 
+from params import CONSTS_MULT_FOVS
+from params import CONSTS_MULT_SIZE
+from params import CONSTS_MASK_SIZE
+
 # ctk window title
 WINDOW_TXT = "Mercury II - Laser Scheme Constructor"
 # default multichannel image size
-PRES = 2304
+PRES = CONSTS_MULT_SIZE
+# default mask image size
+MRES = CONSTS_MASK_SIZE
 # ctk frame parameters
 PARAMS_TB1 = [
     {"width": None, "txt": "Submask Size (um)",      "val": 30,   "padx": (10,0),  "type": int},
@@ -216,30 +221,51 @@ class App(customtkinter.CTk):
             self.txt_log += f"\n\tmultichannel image size: {int_multpx}"
             int_maskpx = self.params[4]
             self.txt_log += f"\n\tmask image size: {int_maskpx}"
-            # calculate how large is the scan areas (in um)
+            # unit conversion: each multichannel image covers CONSTS_MULT_FOVS um of
+            # physical tissue, captured at int_multpx camera px and int_maskpx mask px.
+            mask_px_per_um = int_maskpx / CONSTS_MULT_FOVS
+            # submask grid step in mask pixels (input int_smsize is in micrometers)
+            int_smsize_mask_px = round(int_smsize * mask_px_per_um)
+            # laser FOV size from calibration (camera px) -> micrometers and mask pixels
             _r, _v, _h, _x, _y, width, height = self.tpl_preset
-            laser_w_um = round((width/int_multpx)*int_maskpx)
-            laser_h_um = round((height/int_multpx)*int_maskpx)
-            self.txt_log += f"\n\tlaser scan size: ({laser_w_um},{laser_h_um})"
-            # find min/max x and y values from multichannel image coordinates
+            laser_w_um = (width / int_multpx) * CONSTS_MULT_FOVS
+            laser_h_um = (height / int_multpx) * CONSTS_MULT_FOVS
+            laser_w_mask_px = round(laser_w_um * mask_px_per_um)
+            laser_h_mask_px = round(laser_h_um * mask_px_per_um)
+            self.txt_log += f"\n\tlaser scan size: ({laser_w_um:.1f},{laser_h_um:.1f}) um "
+            self.txt_log += f"= ({laser_w_mask_px},{laser_h_mask_px}) mask px"
+            # find min/max x and y values from multichannel image coordinates (um)
             min_x_um = min(x for x, y in coord_multi)
             max_x_um = max(x for x, y in coord_multi)
             min_y_um = min(y for x, y in coord_multi)
             max_y_um = max(y for x, y in coord_multi)
             self.txt_log += f"\n\tmin/max multichannel x: ({min_x_um},{max_x_um})"
             self.txt_log += f"\n\tmin/max multichannel y: ({min_y_um},{max_y_um})"
-            # use min/max x and y values to determine x and y tissue range
-            range_x_um = abs(max_x_um - min_x_um) + int_maskpx
-            range_y_um = abs(max_y_um - min_y_um) + int_maskpx
-            # find submasked area size, will be divided into submasks (larger than tissue area)
-            submask_area_w = math.ceil(range_x_um / int_smsize) * int_smsize
-            submask_area_h = math.ceil(range_y_um / int_smsize) * int_smsize
-            self.txt_log += f"\n\tsubmasking area: ({submask_area_w},{submask_area_h})"
-            # find global mask dimensions, will include all submasks (larger than submask area)
-            global_mask_w = math.ceil(submask_area_w / laser_w_um) * laser_w_um
-            global_mask_h = math.ceil(submask_area_h / laser_h_um) * laser_h_um
-            self.txt_log += f"\n\tglobal mask size: ({global_mask_w},{global_mask_h})"
-            # create empty image for global mask
+            # tissue range, padded by half a FOV at each end (to account for the fact
+            # that multichannel coords are FOV centers): one full FOV total.
+            range_x_um = abs(max_x_um - min_x_um) + CONSTS_MULT_FOVS
+            range_y_um = abs(max_y_um - min_y_um) + CONSTS_MULT_FOVS
+            range_x_mask_px = round(range_x_um * mask_px_per_um)
+            range_y_mask_px = round(range_y_um * mask_px_per_um)
+            # submasked area, snapped up to a multiple of the submask grid
+            submask_area_w_um = math.ceil(range_x_um / int_smsize) * int_smsize
+            submask_area_h_um = math.ceil(range_y_um / int_smsize) * int_smsize
+            submask_area_w_mask_px = math.ceil(
+                range_x_mask_px / int_smsize_mask_px
+            ) * int_smsize_mask_px
+            submask_area_h_mask_px = math.ceil(
+                range_y_mask_px / int_smsize_mask_px
+            ) * int_smsize_mask_px
+            self.txt_log += f"\n\tsubmasking area: ({submask_area_w_um},{submask_area_h_um}) um"
+            # global mask dimensions in mask pixels, snapped to laser-FOV multiples
+            global_mask_w = math.ceil(
+                submask_area_w_mask_px / laser_w_mask_px
+            ) * laser_w_mask_px
+            global_mask_h = math.ceil(
+                submask_area_h_mask_px / laser_h_mask_px
+            ) * laser_h_mask_px
+            self.txt_log += f"\n\tglobal mask size: ({global_mask_w},{global_mask_h}) mask px"
+            # create empty image for global mask (mask pixel dimensions)
             global_mask = Image.new(
                 'P',
                 (global_mask_w, global_mask_h),
@@ -250,14 +276,14 @@ class App(customtkinter.CTk):
                     'I;16',
                     (global_mask_w, global_mask_h)
                 )
-            # find starting xy coordinates (top-left center) for pasting masks onto global mask
-            int_start_x_px = round((global_mask_w - range_x_um)/2)
-            int_start_y_px = round((global_mask_h - range_y_um)/2)
+            # top-left corner of the tissue range inside the global mask, in mask pixels
+            int_start_x_px = round((global_mask_w - range_x_mask_px) / 2)
+            int_start_y_px = round((global_mask_h - range_y_mask_px) / 2)
             # stitch global mask using multichannel coordinates
             for i, xy_pair in enumerate(coord_multi):
                 # first, find the corresponding image
                 img_path = os.path.join(os.path.join(self.pth_folder, PARAMS_MSK), image_files[i])
-                img = invert_p_mode_image(Image.open(img_path))
+                img = invert_pl_mode_image(Image.open(img_path))
                 if len(image_multi) != 0:
                     mlt_path=os.path.join(os.path.join(self.pth_folder,PARAMS_MCI),image_multi[i])
                     mlt = Image.open(mlt_path).resize(img.size)
@@ -266,11 +292,9 @@ class App(customtkinter.CTk):
                 # adjust for the inversion effect from the microscope before pasting
                 img = img.transpose(method=Image.Transpose.FLIP_LEFT_RIGHT)
                 img = img.transpose(method=Image.Transpose.FLIP_TOP_BOTTOM)
-                # then, find pixel coordinates for the mask to paste onto
-                x_px = round(int_start_x_px + (xy_pair[0] - min_x_um))
-                   # = starting x + (recorded multichannel x - min recorded multichannel x)
-                y_px = round(int_start_y_px + (max_y_um - xy_pair[1]))
-                   # = starting y + (max recorded multichannel y - recorded multichannel y)
+                # paste position in mask pixels: start + (um offset from corner) * scale
+                x_px = round(int_start_x_px + (xy_pair[0] - min_x_um) * mask_px_per_um)
+                y_px = round(int_start_y_px + (max_y_um - xy_pair[1]) * mask_px_per_um)
                 # paste designated mask image onto the global mask
                 global_mask.paste(img, (x_px, y_px))
                 if len(image_multi) != 0:
@@ -303,29 +327,33 @@ class App(customtkinter.CTk):
         try:
             # create submask list
             submasks = []
-            # find submasking grid vertex coordinates (top-left, nw)
+            # submask grid top-left vertex: pixel coords (mask px) and stage coords (um)
             submask_vertex_px = [
-                round((global_mask_w - submask_area_w)/2),
-                round((global_mask_h - submask_area_h)/2)
+                round((global_mask_w - submask_area_w_mask_px) / 2),
+                round((global_mask_h - submask_area_h_mask_px) / 2)
             ]
             submask_vertex_um = [
-                round(min_x_um - int_maskpx/2 - (submask_area_w - range_x_um)/2 + int_smsize/2),
-                round(max_y_um + int_maskpx/2 + (submask_area_h - range_y_um)/2 - int_smsize/2)
+                round(min_x_um - CONSTS_MULT_FOVS/2
+                      - (submask_area_w_um - range_x_um)/2 + int_smsize/2),
+                round(max_y_um + CONSTS_MULT_FOVS/2
+                      + (submask_area_h_um - range_y_um)/2 - int_smsize/2)
             ]
             # loop through all possible submasking areas
-            num_rows = int(submask_area_h/int_smsize)
+            num_rows = int(submask_area_h_mask_px / int_smsize_mask_px)
+            num_cols = int(submask_area_w_mask_px / int_smsize_mask_px)
             for row in range(num_rows):
-                for col in range(int(submask_area_w/int_smsize)):
-                    # crop submask section
+                for col in range(num_cols):
+                    # crop submask region (mask pixel coords on global mask image)
                     this_locus = [
-                        submask_vertex_px[0] + col*int_smsize,
-                        submask_vertex_px[1] + row*int_smsize,
-                        submask_vertex_px[0] + col*int_smsize + int_smsize,
-                        submask_vertex_px[1] + row*int_smsize + int_smsize
+                        submask_vertex_px[0] + col*int_smsize_mask_px,
+                        submask_vertex_px[1] + row*int_smsize_mask_px,
+                        submask_vertex_px[0] + col*int_smsize_mask_px + int_smsize_mask_px,
+                        submask_vertex_px[1] + row*int_smsize_mask_px + int_smsize_mask_px
                     ]
                     this_submask = global_mask.crop(this_locus)
                     # calculate the number of non-white pixels in submask section
                     if count_non_white_pixel(this_submask) > int_min_px:
+                        # prepend submask center stage coords (um) -- step uses um size
                         this_locus.insert(0, submask_vertex_um[1] - row*int_smsize)
                         this_locus.insert(0, submask_vertex_um[0] + col*int_smsize)
                         submasks.append(this_locus)
@@ -351,30 +379,43 @@ class App(customtkinter.CTk):
         # STEP 3: CALCULATE SCAN CENTER COORDINATES
         self.txt_log += "\ncreate scan scheme:"
         try:
-            # calculate xy center coordinates for first laser scan rectangle
-            int_start_x_um = min_x_um-int_maskpx/2-(global_mask_w-range_x_um)/2+laser_w_um/2
-            int_start_y_um = max_y_um+int_maskpx/2+(global_mask_h-range_y_um)/2-laser_h_um/2
+            # global mask in micrometers (for stage coordinate math)
+            global_mask_w_um = global_mask_w / mask_px_per_um
+            global_mask_h_um = global_mask_h / mask_px_per_um
+            # stage center of the first laser scan rectangle (um)
+            int_start_x_um = (min_x_um - CONSTS_MULT_FOVS/2
+                              - (global_mask_w_um - range_x_um)/2 + laser_w_um/2)
+            int_start_y_um = (max_y_um + CONSTS_MULT_FOVS/2
+                              + (global_mask_h_um - range_y_um)/2 - laser_h_um/2)
             # read multichannel z values stored from previous step (mercury 01)
             coord_multi_z = read_zcoordinates(os.path.join(self.pth_folder, PARAMS_CRD))
+            # number of laser scan tiles (global_mask_w/h were built as exact integer
+            # multiples of laser_w/h_mask_px, so this division is already exact)
+            n_tiles_h = global_mask_h // laser_h_mask_px
+            n_tiles_w = global_mask_w // laser_w_mask_px
             # loop through all laser scan rectangles, append xyz and wnes coordinates
             df = []
-            for row in range(round(global_mask_h / laser_h_um)):
-                for col in range(round(global_mask_w / laser_w_um)):
-                    # calculate x, y, z, w, n, e, s coordinates for each scan rectangle
-                    temp = [int_start_x_um + col*laser_w_um, int_start_y_um - row*laser_h_um]
+            for row in range(n_tiles_h):
+                for col in range(n_tiles_w):
+                    # x, y in stage micrometers; z from nearest multichannel position
+                    temp = [
+                        int_start_x_um + col*laser_w_um,
+                        int_start_y_um - row*laser_h_um
+                    ]
                     temp.append(coord_multi_z[find_closest(coord_multi, temp)])
+                    # (w, n, e, s) crop bounds in mask pixel coords on the cleave map
                     temp.extend([
-                        col*laser_w_um,     # w
-                        row*laser_h_um,     # n
-                        (col+1)*laser_w_um, # e
-                        (row+1)*laser_h_um  # s
+                        col*laser_w_mask_px,         # w
+                        row*laser_h_mask_px,         # n
+                        (col+1)*laser_w_mask_px,     # e
+                        (row+1)*laser_h_mask_px,     # s
                     ])
                     df.append(temp)
                 # update toplevel window text
                 self.pop_up.set_text(
-                    text=f"Mapping scan areas ...\n(row {row}/{round(global_mask_h/laser_h_um)})"
+                    text=f"Mapping scan areas ...\n(row {row}/{n_tiles_h})"
                 )
-                self.pop_up.set_progress(row/(global_mask_h/laser_h_um))
+                self.pop_up.set_progress(row/n_tiles_h)
             self.txt_log += f"\n\tscan scheme length: {len(df)}"
             df = pd.DataFrame(df, columns=['x','y','z','w','n','e','s'])
             df.to_csv(os.path.join(self.pth_folder, PARAMS_SCT), index=True)
@@ -579,26 +620,34 @@ class App(customtkinter.CTk):
             self.txt_log += f"\n\tmultichannel image size: {int_multpx}"
             int_maskpx = self.params[2]
             self.txt_log += f"\n\tmask image size: {int_maskpx}"
-            # calculate how large is the scan areas (in um)
+            # unit conversion: each multichannel image covers CONSTS_MULT_FOVS um of
+            # physical tissue, captured at int_multpx camera px and int_maskpx mask px.
+            mask_px_per_um = int_maskpx / CONSTS_MULT_FOVS
+            # laser FOV size from calibration (camera px) -> micrometers and mask pixels
             _r, _v, _h, x, y, width, height = self.tpl_preset
-            laser_w_um = round((width/int_multpx)*int_maskpx)
-            laser_h_um = round((height/int_multpx)*int_maskpx)
-            self.txt_log += f"\n\tlaser scan size: ({laser_w_um},{laser_h_um})"
-            # find min/max x and y values from multichannel image coordinates
+            laser_w_um = (width / int_multpx) * CONSTS_MULT_FOVS
+            laser_h_um = (height / int_multpx) * CONSTS_MULT_FOVS
+            laser_w_mask_px = round(laser_w_um * mask_px_per_um)
+            laser_h_mask_px = round(laser_h_um * mask_px_per_um)
+            self.txt_log += f"\n\tlaser scan size: ({laser_w_um:.1f},{laser_h_um:.1f}) um "
+            self.txt_log += f"= ({laser_w_mask_px},{laser_h_mask_px}) mask px"
+            # find min/max x and y values from multichannel image coordinates (um)
             min_x_um = min(x for x, y in coord_multi)
             max_x_um = max(x for x, y in coord_multi)
             min_y_um = min(y for x, y in coord_multi)
             max_y_um = max(y for x, y in coord_multi)
             self.txt_log += f"\n\tmin/max multichannel x: ({min_x_um},{max_x_um})"
             self.txt_log += f"\n\tmin/max multichannel y: ({min_y_um},{max_y_um})"
-            # use min/max x and y values to determine x and y tissue range
-            range_x_um = abs(max_x_um - min_x_um) + int_maskpx
-            range_y_um = abs(max_y_um - min_y_um) + int_maskpx
-            # find global mask dimensions, will include all submasks (larger than submask area)
-            global_mask_w = math.ceil(range_x_um / laser_w_um) * laser_w_um
-            global_mask_h = math.ceil(range_y_um / laser_h_um) * laser_h_um
-            self.txt_log += f"\n\tglobal mask size: ({global_mask_w},{global_mask_h})"
-            # create empty image for global mask
+            # tissue range, padded by half a FOV on each side (one full FOV total)
+            range_x_um = abs(max_x_um - min_x_um) + CONSTS_MULT_FOVS
+            range_y_um = abs(max_y_um - min_y_um) + CONSTS_MULT_FOVS
+            range_x_mask_px = round(range_x_um * mask_px_per_um)
+            range_y_mask_px = round(range_y_um * mask_px_per_um)
+            # global mask dimensions in mask pixels, snapped to laser-FOV multiples
+            global_mask_w = math.ceil(range_x_mask_px / laser_w_mask_px) * laser_w_mask_px
+            global_mask_h = math.ceil(range_y_mask_px / laser_h_mask_px) * laser_h_mask_px
+            self.txt_log += f"\n\tglobal mask size: ({global_mask_w},{global_mask_h}) mask px"
+            # create empty image for global mask (mask pixel dimensions)
             global_mask = Image.new(
                 'P',
                 (global_mask_w, global_mask_h),
@@ -609,15 +658,15 @@ class App(customtkinter.CTk):
                     'I;16',
                     (global_mask_w, global_mask_h)
                 )
-            # find starting xy coordinates (top-left center) for pasting masks onto global mask
-            int_start_x_px = round((global_mask_w - range_x_um)/2)
-            int_start_y_px = round((global_mask_h - range_y_um)/2)
+            # top-left corner of the tissue range inside the global mask, in mask pixels
+            int_start_x_px = round((global_mask_w - range_x_mask_px) / 2)
+            int_start_y_px = round((global_mask_h - range_y_mask_px) / 2)
             # stitch global mask using multichannel coordinates
             cell_count = []
             for i, xy_pair in enumerate(coord_multi):
                 # first, find the corresponding image
                 img_path = os.path.join(os.path.join(self.pth_folder, PARAMS_MSK), image_files[i])
-                img = invert_p_mode_image(Image.open(img_path))
+                img = invert_pl_mode_image(Image.open(img_path))
                 if len(image_multi) != 0:
                     mlt_path=os.path.join(os.path.join(self.pth_folder,PARAMS_MCI),image_multi[i])
                     mlt = Image.open(mlt_path).resize(img.size)
@@ -626,11 +675,9 @@ class App(customtkinter.CTk):
                 # adjust for the inversion effect from the microscope before pasting
                 img = img.transpose(method=Image.Transpose.FLIP_LEFT_RIGHT)
                 img = img.transpose(method=Image.Transpose.FLIP_TOP_BOTTOM)
-                # then, find pixel coordinates for the mask to paste onto
-                x_px = round(int_start_x_px + (xy_pair[0] - min_x_um))
-                   # = starting x + (recorded multichannel x - min recorded multichannel x)
-                y_px = round(int_start_y_px + (max_y_um - xy_pair[1]))
-                   # = starting y + (max recorded multichannel y - recorded multichannel y)
+                # paste position in mask pixels: start + (um offset from corner) * scale
+                x_px = round(int_start_x_px + (xy_pair[0] - min_x_um) * mask_px_per_um)
+                y_px = round(int_start_y_px + (max_y_um - xy_pair[1]) * mask_px_per_um)
                 # paste designated mask image onto the global mask
                 global_mask.paste(img, (x_px, y_px))
                 if len(image_multi) != 0:
@@ -664,30 +711,43 @@ class App(customtkinter.CTk):
         # STEP 2: CALCULATE SCAN CENTER COORDINATES
         self.txt_log += "\ncreate scan scheme:"
         try:
-            # calculate xy center coordinates for first laser scan rectangle
-            int_start_x_um = min_x_um-int_maskpx/2-(global_mask_w-range_x_um)/2+laser_w_um/2
-            int_start_y_um = max_y_um+int_maskpx/2+(global_mask_h-range_y_um)/2-laser_h_um/2
+            # global mask in micrometers (for stage coordinate math)
+            global_mask_w_um = global_mask_w / mask_px_per_um
+            global_mask_h_um = global_mask_h / mask_px_per_um
+            # stage center of the first laser scan rectangle (um)
+            int_start_x_um = (min_x_um - CONSTS_MULT_FOVS/2
+                              - (global_mask_w_um - range_x_um)/2 + laser_w_um/2)
+            int_start_y_um = (max_y_um + CONSTS_MULT_FOVS/2
+                              + (global_mask_h_um - range_y_um)/2 - laser_h_um/2)
             # read multichannel z values stored from previous step (mercury 01)
             coord_multi_z = read_zcoordinates(os.path.join(self.pth_folder, PARAMS_CRD))
+            # number of laser scan tiles (global_mask_w/h were built as exact integer
+            # multiples of laser_w/h_mask_px, so this division is already exact)
+            n_tiles_h = global_mask_h // laser_h_mask_px
+            n_tiles_w = global_mask_w // laser_w_mask_px
             # loop through all laser scan rectangles, append xyz and wnes coordinates
             df = []
-            for row in range(round(global_mask_h / laser_h_um)):
-                for col in range(round(global_mask_w / laser_w_um)):
-                    # calculate x, y, z, w, n, e, s coordinates for each scan rectangle
-                    temp = [int_start_x_um + col*laser_w_um, int_start_y_um - row*laser_h_um]
+            for row in range(n_tiles_h):
+                for col in range(n_tiles_w):
+                    # x, y in stage micrometers; z from nearest multichannel position
+                    temp = [
+                        int_start_x_um + col*laser_w_um,
+                        int_start_y_um - row*laser_h_um
+                    ]
                     temp.append(coord_multi_z[find_closest(coord_multi, temp)])
+                    # (w, n, e, s) crop bounds in mask pixel coords on the cleave map
                     temp.extend([
-                        col*laser_w_um,     # w
-                        row*laser_h_um,     # n
-                        (col+1)*laser_w_um, # e
-                        (row+1)*laser_h_um  # s
+                        col*laser_w_mask_px,         # w
+                        row*laser_h_mask_px,         # n
+                        (col+1)*laser_w_mask_px,     # e
+                        (row+1)*laser_h_mask_px,     # s
                     ])
                     df.append(temp)
                 # update toplevel window text
                 self.pop_up.set_text(
-                    text=f"Mapping scan areas ...\n(row {row}/{round(global_mask_h/laser_h_um)})"
+                    text=f"Mapping scan areas ...\n(row {row}/{n_tiles_h})"
                 )
-                self.pop_up.set_progress(row/(global_mask_h/laser_h_um))
+                self.pop_up.set_progress(row/n_tiles_h)
             self.txt_log += f"\n\tscan scheme length: {len(df)}"
             df = pd.DataFrame(df, columns=['x','y','z','w','n','e','s'])
             df.to_csv(os.path.join(self.pth_folder, PARAMS_SCT), index=True)
@@ -781,11 +841,9 @@ class App(customtkinter.CTk):
                     # adjust for the inversion effect from the microscope before pasting
                     img = img.transpose(method=Image.Transpose.FLIP_LEFT_RIGHT)
                     img = img.transpose(method=Image.Transpose.FLIP_TOP_BOTTOM)
-                    # find pixel coordinates for the mask to paste onto
-                    x_px = round(int_start_x_px + (xy_pair[0] - min_x_um))
-                        # = starting x + (recorded multichannel x - min recorded multichannel x)
-                    y_px = round(int_start_y_px + (max_y_um - xy_pair[1]))
-                        # = starting y + (max recorded multichannel y - recorded multichannel y)
+                    # paste position in mask pixels: start + (um offset from corner) * scale
+                    x_px = round(int_start_x_px + (xy_pair[0] - min_x_um) * mask_px_per_um)
+                    y_px = round(int_start_y_px + (max_y_um - xy_pair[1]) * mask_px_per_um)
                     # paste designated mask image onto the global mask
                     global_mask.paste(img, (x_px, y_px))
                 # convert cleave map to L mode, save
@@ -1055,10 +1113,12 @@ class PopUpWindow(customtkinter.CTkToplevel):
     def preview_scheme(self):
         """Function: preview laser scan scheme"""
         if self.master.laser_dimension is not None:
+            # the preview plots against multichannel coords (um), so the mask size
+            # passed in is the physical FOV in micrometers, not the mask pixel count.
             if self.master.cell_count is None:
                 preview_laser_grid(
                     exp_folder=self.master.pth_folder,
-                    mask_size=self.master.params[4],
+                    mask_size=CONSTS_MULT_FOVS,
                     submask_size=self.master.params[0],
                     laser_w=self.master.laser_dimension[0],
                     laser_h=self.master.laser_dimension[1]
@@ -1066,7 +1126,7 @@ class PopUpWindow(customtkinter.CTkToplevel):
             elif isinstance(self.master.cell_count, list):
                 preview_laser_cell(
                     exp_folder=self.master.pth_folder,
-                    mask_size=self.master.params[2],
+                    mask_size=CONSTS_MULT_FOVS,
                     laser_w=self.master.laser_dimension[0],
                     laser_h=self.master.laser_dimension[1],
                     num_cell=self.master.cell_count
@@ -1420,13 +1480,17 @@ def preview_laser_cell(exp_folder, mask_size:int, laser_w:int, laser_h:int, num_
     plt.show()
 
 
-def invert_p_mode_image(image: Image.Image) -> Image.Image:
+def invert_pl_mode_image(image: Image.Image) -> Image.Image:
     """
-    Invert a P mode (palette) PNG image.
+    Invert a P/L mode PNG image.
 
+    If the image is in P mode:
     Converts to RGB before inverting to ensure pixel values are treated as
     actual colors rather than palette indices, then converts back to P mode
     using the original palette to avoid quantization loss.
+
+    If the image is in L mode:
+    Use 
 
     Args:
         image: A PIL Image in P mode.
@@ -1437,14 +1501,17 @@ def invert_p_mode_image(image: Image.Image) -> Image.Image:
     Raises:
         ValueError: If the input image is not in P mode.
     """
-    if image.mode != "P":
-        raise ValueError(f"Expected P mode image, got {image.mode!r}")
-    # invert the palette entries directly (lossless)
-    palette = image.getpalette()  # list of [R, G, B, R, G, B, ...]
-    inverted_palette = [255 - v for v in palette]
-    output = image.copy()
-    output.putpalette(inverted_palette)
-    return output
+    if image.mode == "P":
+        # invert the palette entries directly (lossless)
+        palette = image.getpalette()  # list of [R, G, B, R, G, B, ...]
+        inverted_palette = [255 - v for v in palette]
+        output = image.copy()
+        output.putpalette(inverted_palette)
+        return output
+    elif image.mode == "L":
+        return ImageOps.invert(image)
+    else:
+        raise ValueError(f"Expected P or L mode image, got {image.mode!r}")
 
 
 # ========================================= main function =========================================
