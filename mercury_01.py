@@ -27,6 +27,8 @@ from params import PARAMS_CRD
 # from params import PARAMS_TMP
 from params import PARAMS_VER
 
+from params import CONSTS_MULT_FOVS
+
 # ctk window title
 WINDOW_TXT = "Mercury I - Image Scheme Constructor"
 # ctk window size
@@ -36,7 +38,7 @@ PARAMS_TAB = ["Global Tissue", "Square Subgroup"]
 # scan scheme default corner radius
 PARAMS_CRN = 4
 # scan scheme default multichannel resolution (um)
-PARAMS_RES = 366
+PARAMS_RES = CONSTS_MULT_FOVS
 
 
 # ===================================== customtkinter classes =====================================
