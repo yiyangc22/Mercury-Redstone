@@ -26,9 +26,11 @@ import customtkinter as ctk
 from cellpose import models, io
 from PIL import Image, ImageChops
 
-START_FOLDER = os.path.join(os.path.expanduser("~"), "Box")
+from params import CONSTS_MASK_SIZE
+
+START_FOLDER = os.path.join(os.path.expanduser("~"), "Box", "_exp_name_", "image_multichannel")
 START_INTERV = 2
-ROTATE_MASKS = False
+MASK_SIZE = [CONSTS_MASK_SIZE, CONSTS_MASK_SIZE]
 
 
 # ── Theme ────────────────────────────────────────────────────────────────────────────────────────
@@ -526,12 +528,12 @@ class FolderWatcherApp(ctk.CTk):
             create_cpmask_single(
                 original=filepath,
                 savepath=outfolder,
+                savesize=MASK_SIZE,
                 cp_model=cp_model,
                 diameter=diam,
                 save_png=True,
                 save_npz=save_npz,
-                reversal=False,
-                rotate_mask=ROTATE_MASKS,
+                reversal=False
             )
             self._log_threadsafe(
                 f"*  Processing complete: {basename}", "success")
@@ -635,8 +637,7 @@ def create_cpmask_single(
         diameter: int = 30,             # average pixel diameter for a typical cell
         channels: list = None,          # segmentation channel [cytoplasm, nucleus]
         save_png: bool = True,          # if a new cellpose png file would be saved
-        save_npz: bool = True,          # if a cell masking npz file would be saved
-        rotate_mask: bool = True        # rotate the output mask 180° before saving
+        save_npz: bool = True           # if a cell masking npz file would be saved
 ):
     """
     ### Construct and save mask for a multichannel image (as png or npz).
@@ -652,7 +653,6 @@ def create_cpmask_single(
     `channels`    : segmentation channel [cytoplasm, nucleus] = `[0,0]`.
     `save_png`    : if a new cellpose png file would be saved = `True`.
     `save_npz`    : if a cell masking npz file would be saved = `True`.
-    `rotate_mask` : rotate the output mask 180° before saving = `True`.
     """
     if cp_model.lower() == "none" or cp_model is None:
         return
@@ -672,8 +672,6 @@ def create_cpmask_single(
         msk = Image.fromarray(binary, mode="L")
         if reversal is False:
             msk = ImageChops.invert(msk)
-        if rotate_mask:
-            msk = msk.rotate(180)
         if savesize is not None:
             msk = msk.resize(savesize)
         if savepath is None:
