@@ -337,7 +337,7 @@ def record_laser_coord(laser_img_folder_path, coords, num_round, execute_status)
 
 def mercury_03():
     """
-    Main application loop of mercury 01, return user inputs when loop ended.
+    Main application loop of mercury 03, return user inputs when loop ended.
     """
     # set customtkinter appearance mode and color theme
     customtkinter.set_appearance_mode("dark")
@@ -350,4 +350,4 @@ def mercury_03():
     try:
         return app.rtn
     except AttributeError:
-        return ([],'','',[])
+        return ([],'','',[],[])
