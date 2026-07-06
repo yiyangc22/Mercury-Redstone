@@ -100,13 +100,21 @@ class App(customtkinter.CTk, Moa):
             dataframe = pd.DataFrame(df, columns=['x','y','z','w','n','e','s'])
             dataframe.to_csv(os.path.join(path_folder, PARAMS_MAP, f"Round {i}.csv"), index=True)
         # if there are existing laser images, resume from the last image
+        print(port_list)
+        print(fov)
         resume_point = find_resume_point(path_lsrimg) 
-        round, image = 0
+        round, image = (0,0)
         if resume_point is not None:
             round, image = resume_point
+            print(f"{round}, {image}")
             del port_list[:(round+1)]
-            del fov[:(round+1)]
-            fov[0] = fov[0] - image
+            del fov[:(round)]
+            if fov[0] == (image + 1):
+                del fov[:1]
+                image = 0
+            else:
+                fov[0] = fov[0] - image
+            print(fov)
         # return saved data
         self.rtn = (
             port_list, path_lsrimg, path_tmpmsk, fov, [PARAMS_STT[0]+round, PARAMS_STT[1]+image]
@@ -351,3 +359,6 @@ def mercury_03():
         return app.rtn
     except AttributeError:
         return ([],'','',[],[])
+
+# if __name__ == '__main__':
+#     print(mercury_03())
