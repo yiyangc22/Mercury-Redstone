@@ -107,13 +107,14 @@ class App(customtkinter.CTk, Moa):
         if resume_point is not None:
             round, image = resume_point
             print(f"{round}, {image}")
-            del port_list[:(round+1)]
+            del port_list[:(round)]
             del fov[:(round)]
             if fov[0] == (image + 1):
+                del port_list[:1]
                 del fov[:1]
                 image = 0
             else:
-                fov[0] = fov[0] - image
+                fov[0] = fov[0] - image - 1
             print(fov)
         # return saved data
         self.rtn = (
