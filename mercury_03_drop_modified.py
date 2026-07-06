@@ -1,17 +1,5 @@
 """
-Mercury 03 (drop-modified): fluid scheme constructor, project version 1.24 (with python 3.9).
-
-Difference from `mercury_03_copy.py`:
-- Adds crash/termination resume support. If an experiment stops unexpectedly, rerun mercury_03
-  on the same experiment folder and it will pick up where it left off. On rerun the image_laser
-  folder is scanned for the last saved per-FOV laser image (its name encodes the round/area, same
-  convention mercury_04 uses: file[0:4]-1000 = round, file[5:9]-1000 = area). That (round, area)
-  boundary is written to `config_resume_point.csv`; during the LabVIEW run update_mask skips every
-  area at or before it so the laser never re-fires on already-completed areas.
-- Fixes a LabVIEW type error ("mismatching a real number with list"). The original "skip / not
-  executed" return value was [[],[],[]] (a list of empty lists), which LabVIEW cannot coerce into
-  the array-of-reals it expects for the (x, y, z) coordinate. It is replaced by an empty list []
-  (an empty numeric array), which is type-safe and signals "no coordinate -> skip this area".
+Mercury 03: fluid scheme constructor, project version 1.24 (with python 3.9).
 """
 
 import os
@@ -30,6 +18,7 @@ Image.MAX_IMAGE_PIXELS = 450000000
 
 WINDOW_TXT = "Mercury III - Fluid Scheme Constructor"
 WINDOW_RES = "800x100"
+PARAMS_STT = [1000, 1000]   # [round, area] starting number in image names
 
 PARAMS_DTP = os.path.join(os.path.expanduser("~"), "Desktop")
 PARAMS_EXP = os.path.join(PARAMS_DTP, f"latest_{date.today()}")
@@ -43,13 +32,6 @@ PARAMS_GLB = "image_mask_global.png"
 PARAMS_SCT = "coord_scan_center.csv"
 PARAMS_BIT = "config_bit_scheme.csv"
 PARAMS_TMP = "image_mask_tmp.png"
-PARAMS_RSM = "config_resume_point.csv"
-
-# value update_mask returns to tell LabVIEW "do not execute this area" (skip / not executed).
-# it must be an array of real numbers, so an empty list [] (empty numeric array) is used rather
-# than the original [[],[],[]] which caused a "mismatching a real number with list" type error.
-# if your LabVIEW VI expects a fixed 3-element sentinel instead, change this to [-1.0, -1.0, -1.0].
-SKIP_RETURN = []
 
 
 # ===================================== customtkinter classes =====================================
@@ -61,7 +43,7 @@ class Moa:
     # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~ on enable ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     def __init__(self):
         super().__init__()
-        self.rtn = ([],'','',[])
+        self.rtn = ([],'','',[],[])
 
 
 class App(customtkinter.CTk, Moa):
@@ -117,22 +99,18 @@ class App(customtkinter.CTk, Moa):
             fov.append(cnt)
             dataframe = pd.DataFrame(df, columns=['x','y','z','w','n','e','s'])
             dataframe.to_csv(os.path.join(path_folder, PARAMS_MAP, f"Round {i}.csv"), index=True)
-        # resume support: deduce where a previous (unintentionally terminated) run left off by
-        # inspecting the last laser image saved in the image_laser folder, then persist that
-        # (round, area) boundary. update_mask uses it to skip already-completed areas so the
-        # experiment continues with the rest instead of restarting from the beginning.
-        resume_point = find_resume_point(path_lsrimg)
-        if resume_point is None:
-            write_resume_point(path_folder, -1, -1)
-            print("Resume: no existing laser images found, starting from round 0 area 0.")
-        else:
-            resume_round, resume_area = resume_point
-            write_resume_point(path_folder, resume_round, resume_area)
-            print(f"Resume: last saved laser image is round {resume_round} area {resume_area}.")
-            print(f"Resume: skipping every area up to and including round {resume_round} "
-                  f"area {resume_area}; the experiment will continue with the rest.")
+        # if there are existing laser images, resume from the last image
+        resume_point = find_resume_point(path_lsrimg) 
+        round, image = 0
+        if resume_point is not None:
+            round, image = resume_point
+            del port_list[:(round+1)]
+            del fov[:(round+1)]
+            fov[0] = fov[0] - image
         # return saved data
-        self.rtn = (port_list, path_lsrimg, path_tmpmsk, fov)
+        self.rtn = (
+            port_list, path_lsrimg, path_tmpmsk, fov, [PARAMS_STT[0]+round, PARAMS_STT[1]+image]
+        )
         self.quit()
     # ---------------------------------------------------------------------------------------------
     def on_closing(self):
@@ -191,6 +169,7 @@ class Exp(customtkinter.CTkFrame):
 
 # ===================================== independent functions =====================================
 
+
 def parse_laser_image(filename):
     """
     Function: parse a per-FOV laser image filename into a (round, area) pair, or None.
@@ -237,27 +216,6 @@ def find_resume_point(laser_folder):
     return last_point
 
 
-def write_resume_point(exp_folder, num_round, area):
-    """
-    Function: persist the resume boundary (round, area) so update_mask can skip completed areas.
-    A boundary of (-1, -1) means "nothing to skip" (fresh run).
-    """
-    dataframe = pd.DataFrame({"round": [num_round], "area": [area]})
-    dataframe.to_csv(os.path.join(exp_folder, PARAMS_RSM), index=False)
-
-
-def read_resume_point(exp_folder):
-    """
-    Function: read the resume boundary written by app_exp; return a (round, area) tuple,
-    or (-1, -1) when the file is missing or unreadable (i.e. skip nothing).
-    """
-    try:
-        row = pd.read_csv(os.path.join(exp_folder, PARAMS_RSM)).values.tolist()[0]
-        return (int(row[0]), int(row[1]))
-    except (FileNotFoundError, IndexError, ValueError, KeyError):
-        return (-1, -1)
-
-
 def update_mask(img_folder, num_round, area):
     """
     Function: update and stretch temp cleave mask based on round/area number.
@@ -267,20 +225,11 @@ def update_mask(img_folder, num_round, area):
     if num_round < 0 or area < 0:
         print(f"Warning: invalid round/area combination: round {num_round} area {area}.")
         print(f"Warning: round {num_round} area {area} not executed.")
-        return SKIP_RETURN
-    # resume support: skip any (round, area) at or before the resume boundary written by app_exp.
-    # these areas already have a saved laser image from a previous run, so returning the type-safe
-    # empty "not executed" value keeps the laser from re-firing and lets the experiment continue
-    # with the remaining areas. execution order is round-major, area-minor.
-    # (use `< boundary` instead of `<= boundary` here if the last saved image should be redone.)
-    exp_folder = os.path.dirname(img_folder)
-    resume_round, resume_area = read_resume_point(exp_folder)
-    if (resume_round, resume_area) != (-1, -1) and (num_round, area) <= (resume_round, resume_area):
-        print(f"Resume: round {num_round} area {area} already completed, skipping.")
-        return SKIP_RETURN
+        return [[],[],[]]
     # try constructing the mask
     try:
-        # access cleave center coordinates (exp_folder computed above for the resume check)
+        # access cleave center coordinates
+        exp_folder = os.path.dirname(img_folder)
         center_coord = pd.read_csv(os.path.join(exp_folder, PARAMS_MAP, f"Round {num_round}.csv"),
             keep_default_na = False, usecols=[1,2,3,4,5,6,7]).values.tolist()[area]
         # access cleave mask area
@@ -345,7 +294,7 @@ def update_mask(img_folder, num_round, area):
     except FileNotFoundError as e:
         print(f"Warning: {e}")
         print(f"Warning: round {num_round} area {area} not executed.")
-        return SKIP_RETURN
+        return [[],[],[]]
 
 
 def record_laser_coord(laser_img_folder_path, coords, num_round, execute_status):
@@ -356,20 +305,15 @@ def record_laser_coord(laser_img_folder_path, coords, num_round, execute_status)
     """
     # find csv file name
     file = os.path.join(laser_img_folder_path, f"Round {num_round} (recorded).csv")
-    # tolerate an empty / short coordinate list (e.g. a skipped or not-executed area) by padding
-    # with NaN, so a record can still be written without an index error.
-    x = coords[0] if len(coords) > 0 else float('nan')
-    y = coords[1] if len(coords) > 1 else float('nan')
-    z = coords[2] if len(coords) > 2 else float('nan')
     # if the file already exists, append new coordinates at the end of the file
     if os.path.exists(file):
         # read existing csv data as dataframe 1
         df1 = pd.read_csv(file, usecols=[1,2,3,4])
         # create new coordinates as dataframe 2
         df2 = pd.DataFrame({
-            "x": [x],
-            "y": [y],
-            "z": [z],
+            "x": [coords[0]],
+            "y": [coords[1]],
+            "z": [coords[2]],
             "exec": execute_status
         })
         # avoid concat empty dataframes (may cause empty rows)
@@ -381,9 +325,9 @@ def record_laser_coord(laser_img_folder_path, coords, num_round, execute_status)
     # if the file does not exist, create the file and store coordinates
     else:
         df = pd.DataFrame({
-            "x": [x],
-            "y": [y],
-            "z": [z],
+            "x": [coords[0]],
+            "y": [coords[1]],
+            "z": [coords[2]],
             "exec": execute_status
         })
         df.to_csv(file, index=True)
