@@ -202,12 +202,41 @@ class shear_valve:
 
 
 def set_shear_valve(position, com_port='COM7', move_direction="CW"): # 'CW' or 'CCW'
-    """Move shear valve to a given position, return once the move is finished"""
+    """Move shear valve to a given position, return once the move is finished.
+
+    Returns:
+        0 -- the COM port is already in use (access denied / occupied)
+        1 -- the move completed without raising an error
+        2 -- any other error
+    """
+    valve = None
     try:
-        valve=shear_valve(com_port)
-        valve.move_to_position(position,move_direction)
-        valve.CommPort.close()
-    except:
-        print(str(sys.exc_info()[1])) 
-        valve.CommPort.close()
-    return
+        valve = shear_valve(com_port)
+        valve.move_to_position(position, move_direction)
+        return 1
+    except serial.SerialException as exc:
+        # raised directly when the port itself cannot be opened
+        print(str(exc))
+        low = str(exc).lower()
+        return 0 if ("denied" in low or "permission" in low) else 2
+    except Exception as exc:
+        # shear_valve() swallows the serial error internally and re-raises it as
+        # something else, so if construction never returned a valve, probe the
+        # port directly to tell an occupied port apart from other failures
+        print(str(exc))
+        if valve is None:
+            try:
+                serial.Serial(com_port).close()
+            except serial.SerialException as probe:
+                print(str(probe))
+                low = str(probe).lower()
+                if "denied" in low or "permission" in low:
+                    return 0
+        return 2
+    finally:
+        # close the port only if it was actually opened (guards the unbound 'valve')
+        if valve is not None and getattr(valve, "CommPort", None) is not None:
+            try:
+                valve.CommPort.close()
+            except Exception:
+                pass
