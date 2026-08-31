@@ -1,5 +1,5 @@
 """
-Mercury 02: laser scheme constructor, project version 1.25 (with python 3.9).
+Mercury 02: laser scheme constructor, project version 1.26 (with python 3.9).
 """
 
 import os
