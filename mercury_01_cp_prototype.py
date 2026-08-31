@@ -1,5 +1,14 @@
 """
-Mercury 01X: image scheme constructor, project version 1.25 (with python 3.9).
+Mercury 01: image scheme constructor, project version 1.26 (with python 3.9).
+
+This file should be ran on the pi-seq computer given it has full Cellpose support,
+which requires torch CUDA installation via conda and version validation with Cellpose.
+
+To use this file in an experiment, replace LabVIEW's reference for mercury_01.py to this file,
+then make sure not to enable mercury_01_cp_listener on the listener computer (or disable box).
+
+Cell segmentation is added as the third command tab that doesn't interfere with the first two,
+which means this file should be ran twice: first for imaging, second for segmentation.
 """
 
 import os
