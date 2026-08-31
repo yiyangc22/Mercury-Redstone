@@ -1,5 +1,5 @@
 """
-Mercury 03: fluid scheme constructor, project version 1.25 (with python 3.9).
+Mercury 03: fluid scheme constructor, project version 1.26 (with python 3.9).
 """
 
 import os
@@ -38,7 +38,7 @@ PARAMS_LSP = [
     {"width": None, "txt": "Scan Size",              "val": 2.5,  "padx": (10,0), "type": float},
     {"width": None, "txt": "Min Pixel Threshold",    "val": 10,   "padx": (10,0), "type": int},
     {"width": None, "txt": "Temp Mask Size (px)",    "val": 1024, "padx": (10,0), "type": int},
-    {"width": None, "txt": "Number of Fluidic Port", "val": 21,   "padx": (10,10), "type": int},
+    {"width": None, "txt": "Number of Fluidic Port", "val": 42,   "padx": (10,10), "type": int},
 ]
 
 
