@@ -1,8 +1,8 @@
 """
-Mercury 01: mask listener/constructor, project version 1.25 (with python 3.9).
+Mercury 01: mask listener/constructor, project version 1.26 (with python 3.9).
 
 This file should be ran on a separate computer from the pi-seq microscope computer,
-which does not support Cellpose or mask constuction functions.
+which does not support Cellpose but has a shared box folder for experiment data.
 
 In an experiment, run this file first, then start mercury_01.py on pi-seq computer,
 this file will automatically process mask images at a given interval.
