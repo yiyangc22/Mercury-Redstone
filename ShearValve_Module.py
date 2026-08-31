@@ -201,7 +201,7 @@ class shear_valve:
 
 
 
-def set_shear_valve(position, com_port='COM7', move_direction="CW"): # 'CW' or 'CCW'
+def set_shear_valve(position, com_port='COM8', move_direction="CCW"): # 'CW' or 'CCW'
     """Move shear valve to a given position, return once the move is finished"""
     try:
         valve=shear_valve(com_port)
