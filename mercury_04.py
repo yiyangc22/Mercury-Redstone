@@ -49,8 +49,8 @@ PARAMS_GLS = "Round {} (laser).png"
 # alpha value of each laser image (half-transparent, so overlaps and illuminations are visible)
 PARAMS_ALP = 128
 # barcode overlay colors: not cleaved / cleaved in the selected round
-PARAMS_CL0 = "cyan"
-PARAMS_CL1 = "magenta"
+PARAMS_CL0 = "red"
+PARAMS_CL1 = "green"
 # stitched images can exceed pillow's decompression bomb limit, disable the check
 Image.MAX_IMAGE_PIXELS = None
 
@@ -510,3 +510,6 @@ def mercury_04():
     app.after_idle(app.attributes, "-topmost", False)
     app.after(10, app.focus)
     app.mainloop()
+
+if __name__ == "__main__":
+    print(mercury_04())
