@@ -28,7 +28,9 @@ from PIL import Image, ImageChops
 
 from params import CONSTS_MASK_SIZE
 
-START_FOLDER = os.path.join(os.path.expanduser("~"), "Box", "_exp_name_", "image_multichannel")
+START_FOLDER = os.path.join(
+    os.path.expanduser("~"), "Box", "Pi-seq", "Experiments", "_exp_name_", "image_multichannel"
+)
 START_INTERV = 2
 MASK_SIZE = [CONSTS_MASK_SIZE, CONSTS_MASK_SIZE]
 
