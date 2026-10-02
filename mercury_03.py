@@ -40,6 +40,8 @@ PARAMS_LSP = [
     {"width": None, "txt": "Temp Mask Size (px)",    "val": 1024, "padx": (10,0), "type": int},
     {"width": None, "txt": "Number of Fluidic Port", "val": 42,   "padx": (10,10), "type": int},
 ]
+# stitched images can exceed pillow's decompression bomb limit, disable the check
+Image.MAX_IMAGE_PIXELS = None
 
 
 # ===================================== customtkinter classes =====================================
